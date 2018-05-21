@@ -1,0 +1,19 @@
+default-target = "asmjs-unknown-emscripten"
+
+# This will prepend a given JavaScript file to the resulting `.js` artifact.
+# You can put any initialization code here which you'd like to have executed
+# when your `.js` file first loads.
+
+[cargo-web]
+# Asserts the minimum required version of `cargo-web` necessary
+# to compile this crate; supported since 0.6.0.
+minimum-version = "0.6.0"
+
+# These will only take effect on *-emscripten targets.
+[target.emscripten]
+# You can have a target-specific `prepend-js` key.
+# prepend-js = "src/emscripten_runtime.js"
+# This will enable Emscripten's SDL2 port. Consult Emscripten's documentation
+# for more details.
+link-args = ["-s", "USE_SDL=2"]
+

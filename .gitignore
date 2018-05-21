@@ -1,0 +1,11 @@
+[Tt]emp/
+
+dist/
+target/
+node_modules/
+
+emsdk_set_env.sh
+
+.cache
+.yo-rc.json
+*.swp

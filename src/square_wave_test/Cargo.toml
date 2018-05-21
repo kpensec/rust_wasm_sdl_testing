@@ -1,0 +1,8 @@
+[package]
+name = "rust-app"
+version = "0.1.0"
+authors = ["Oropiko <nope@nopemail.nope>"]
+
+[dependencies]
+sdl2 = "*"
+
