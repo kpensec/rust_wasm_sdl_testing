@@ -11,16 +11,33 @@ use std::time::Duration;
 use std::collections::{HashSet, HashMap};
 use utils::clamp;
 
-
+// TODO put platform dependent code and import in a single module!
 #[cfg(target_os = "emscripten")]
 pub mod emscripten;
+
+#[cfg(target_os = "emscripten")]
+pub fn exit_application() -> () {
+    emscripten::emscripten::exit_application();
+}
+
+
+#[cfg(not(target_os = "emscripten"))]
+static mut quit: bool = false;
+
+#[cfg(not(target_os = "emscripten"))]
+pub fn exit_application() -> () {
+    unsafe {
+        quit = true;
+    }
+}
+
 
 mod utils;
 mod synth;
 
-const DEFAULT_FREQ : i32 = 48_000;
-const DEFAULT_CHANNEL_NUMBER : u8 = 2;
-const DEFAULT_SAMPLE_SIZE : u16 = 512 * 2;
+// const DEFAULT_FREQ : i32 = None;
+// const DEFAULT_CHANNEL_NUMBER : u8 = 2;
+// const DEFAULT_SAMPLE_SIZE : u16 = 2048;
 
 fn main() {
     let sdl_context = sdl2::init().unwrap();
@@ -33,10 +50,15 @@ fn main() {
         .unwrap();
 
     let audio_subsystem = sdl_context.audio().unwrap();
+    // let desired_spec = AudioSpecDesired {
+    //     freq: Some(DEFAULT_FREQ),
+    //     channels: Some(DEFAULT_CHANNEL_NUMBER),  // mono
+    //     samples: Some(DEFAULT_SAMPLE_SIZE) // default sample size
+    // };
     let desired_spec = AudioSpecDesired {
-        freq: Some(DEFAULT_FREQ),
-        channels: Some(DEFAULT_CHANNEL_NUMBER),  // mono
-        samples: Some(DEFAULT_SAMPLE_SIZE) // default sample size
+        freq: None,
+        channels: None, 
+        samples: None
     };
     let mut device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
         // initialize the audio callback
@@ -44,6 +66,7 @@ fn main() {
         synth::SquareWave::new(spec.freq)
     }).unwrap();
 
+    synth::play(&mut device);
     let mut canvas = window.into_canvas()
         .build()
         .unwrap();
@@ -54,7 +77,7 @@ fn main() {
     let sprite_color = Color::RGB(255, 255, 255);
     let bg_color = Color::RGB(0, 0, 128);
     let mut rect = Rect::new(10, 10, 10, 10);
-    let mut phase_idx : usize = 0;
+    // let mut phase_idx : usize = 0;
     synth::play(&mut device);
     let mut prev_keys = HashSet::new();
     let mut keyboard_notes = HashMap::new();
@@ -66,12 +89,24 @@ fn main() {
     keyboard_notes.insert(Keycode::K, 5 as usize);
     keyboard_notes.insert(Keycode::L, 6 as usize);
     keyboard_notes.insert(Keycode::M, 7 as usize);
+    keyboard_notes.insert(Keycode::W, 8 as usize);
+    keyboard_notes.insert(Keycode::X, 9 as usize);
+    keyboard_notes.insert(Keycode::C, 10 as usize);
+    keyboard_notes.insert(Keycode::V, 11 as usize);
+    keyboard_notes.insert(Keycode::N, 12 as usize);
+    keyboard_notes.insert(Keycode::Comma, 13 as usize);
+    keyboard_notes.insert(Keycode::Semicolon, 14 as usize);
+    keyboard_notes.insert(Keycode::Colon, 15 as usize);
+    keyboard_notes.insert(Keycode::A, 24 as usize);
+    keyboard_notes.insert(Keycode::Z, 19 as usize);
+    keyboard_notes.insert(Keycode::E, 20 as usize);
+    keyboard_notes.insert(Keycode::R, 22 as usize);
 
-    let main_loop = || {
+    let mut main_loop = || {
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-                    emscripten::exit_application();
+                    exit_application();
                     println!("Application exited!");
                 },
                 Event::KeyDown { keycode: Some(Keycode::Left), ..} => {
@@ -94,7 +129,7 @@ fn main() {
                 //    let mut lock = device.lock();
                 //    (*lock).release_note(0);
                 //},
-                Event::KeyDown { keycode: Some(Keycode::A), ..} => {
+                Event::KeyDown { keycode: Some(Keycode::T), ..} => {
                     synth::play(&mut device);
                 },
                 Event::KeyDown { keycode: Some(Keycode::Y), ..} => {
@@ -117,14 +152,14 @@ fn main() {
                     // let mut lock = device.lock();
                     // device.spec().samples = clamp(device.spec().samples >> 1, 32, 4096);
                 },
-                Event::KeyDown { keycode: Some(Keycode::I), ..} => {
-                    let mut lock = device.lock();
-                    (*lock).change_tone(phase_idx, 5);
-                },
-                Event::KeyDown { keycode: Some(Keycode::U), ..} => {
-                    let mut lock = device.lock();
-                    (*lock).change_tone(phase_idx, -5);
-                },
+                //Event::KeyDown { keycode: Some(Keycode::I), ..} => {
+                //    let mut lock = device.lock();
+                //    (*lock).change_tone(phase_idx, 5);
+                //},
+                //Event::KeyDown { keycode: Some(Keycode::U), ..} => {
+                //    let mut lock = device.lock();
+                //    (*lock).change_tone(phase_idx, -5);
+                //},
                 // Event::KeyDown { keycode: Some(Keycode::L), ..} => {
                 //     phase_idx = (phase_idx + 1) % 4
                 // },
@@ -186,12 +221,16 @@ fn main() {
 
     };
 
-    #[cfg(target_os = "emscripten")]
-    use emscripten::{emscripten};
 
     #[cfg(target_os = "emscripten")]
-    emscripten::set_main_loop_callback(main_loop);
+    emscripten::emscripten::set_main_loop_callback(main_loop);
 
     #[cfg(not(target_os = "emscripten"))]
-    'running: loop { main_loop(); }
+    'running: loop {
+        main_loop();
+        unsafe {
+        if quit {
+            break
+        }}
+    }
 }

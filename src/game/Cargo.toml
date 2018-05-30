@@ -5,4 +5,5 @@ authors = ["Oropiko <nope@nopemail.nope>"]
 
 [dependencies]
 sdl2 = "*"
+rand = "*"
 
