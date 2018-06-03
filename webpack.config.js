@@ -33,17 +33,17 @@ module.exports = {
               }
             ]
           },
-          {
-            test: /\.rs$/,
-            use: {
-              loader: 'rust-emscripten-loader',
-              options: {
-                path: '',
-                target: 'wasm',
-                outName: 'game.wasm'
-              }
-            }
-          }
+          //{
+          //  test: /\.rs$/,
+          //  use: {
+          //    loader: 'rust-emscripten-loader',
+          //    options: {
+          //      path: '',
+          //      target: 'wasm',
+          //      outName: 'game.wasm'
+          //    }
+          //  }
+          //}
         ]
       }
     ]
@@ -57,5 +57,8 @@ module.exports = {
     path: path.resolve(__dirname, 'dist')
   },
 
-  mode: 'development'
+  mode: 'development',
+  node: {
+      fs: "empty"
+  }
 };

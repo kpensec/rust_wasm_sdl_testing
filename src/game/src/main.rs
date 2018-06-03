@@ -1,6 +1,5 @@
 extern crate sdl2;
 
-
 use sdl2::pixels::Color;
 use sdl2::event::{Event};
 use sdl2::keyboard::Keycode;
@@ -9,7 +8,11 @@ use sdl2::audio::{AudioSpecDesired};
 
 use std::time::Duration;
 use std::collections::{HashSet, HashMap};
-use utils::clamp;
+
+mod utils;
+mod synth;
+mod key;
+mod periodical_wave;
 
 // TODO put platform dependent code and import in a single module!
 #[cfg(target_os = "emscripten")]
@@ -32,8 +35,6 @@ pub fn exit_application() -> () {
 }
 
 
-mod utils;
-mod synth;
 
 // const DEFAULT_FREQ : i32 = None;
 // const DEFAULT_CHANNEL_NUMBER : u8 = 2;
@@ -63,7 +64,7 @@ fn main() {
     let mut device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
         // initialize the audio callback
         println!("{:?}", spec);
-        synth::SquareWave::new(spec.freq)
+        synth::Synthesizer::new(spec.freq)
     }).unwrap();
 
     synth::play(&mut device);
@@ -121,15 +122,7 @@ fn main() {
                 Event::KeyDown { keycode: Some(Keycode::Down), ..} => {
                     rect.y += 10;
                 },
-                //Event::KeyDown { keycode: Some(Keycode::Q), ..} => {
-                //    let mut lock = device.lock();
-                //    (*lock).start_note(0);
-                //},
-                //Event::KeyUp { keycode: Some(Keycode::Q), ..} => {
-                //    let mut lock = device.lock();
-                //    (*lock).release_note(0);
-                //},
-                Event::KeyDown { keycode: Some(Keycode::T), ..} => {
+                Event::KeyDown { keycode: Some(Keycode::F1), ..} => {
                     synth::play(&mut device);
                 },
                 Event::KeyDown { keycode: Some(Keycode::Y), ..} => {
@@ -144,36 +137,6 @@ fn main() {
                     let mut lock = device.lock();
                     (*lock).change_volume(0.1);
                 },
-                Event::KeyDown { keycode: Some(Keycode::T), ..} => {
-                    // let mut lock = device.lock();
-                    // device.spec().samples = clamp(device.spec().samples << 1, 32, 4096);
-                },
-                Event::KeyDown { keycode: Some(Keycode::R), ..} => {
-                    // let mut lock = device.lock();
-                    // device.spec().samples = clamp(device.spec().samples >> 1, 32, 4096);
-                },
-                //Event::KeyDown { keycode: Some(Keycode::I), ..} => {
-                //    let mut lock = device.lock();
-                //    (*lock).change_tone(phase_idx, 5);
-                //},
-                //Event::KeyDown { keycode: Some(Keycode::U), ..} => {
-                //    let mut lock = device.lock();
-                //    (*lock).change_tone(phase_idx, -5);
-                //},
-                // Event::KeyDown { keycode: Some(Keycode::L), ..} => {
-                //     phase_idx = (phase_idx + 1) % 4
-                // },
-                // Event::KeyDown { keycode: Some(Keycode::H), ..} => {
-                //     phase_idx = (phase_idx - 1) % 4
-                // },
-                // Event::KeyDown { keycode: Some(Keycode::J), ..} => {
-                //     let mut lock = device.lock();
-                //     (*lock).change_phase(phase_idx, -0.005);
-                // },
-                // Event::KeyDown { keycode: Some(Keycode::K), ..} => {
-                //     let mut lock = device.lock();
-                //     (*lock).change_phase(phase_idx, 0.005);
-                // },
                 _ => {}
             }
         }
