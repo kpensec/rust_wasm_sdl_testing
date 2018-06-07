@@ -1,41 +1,18 @@
 extern crate sdl2;
 
+mod utils;
+mod synth;
+mod platform;
+
 use sdl2::pixels::Color;
 use sdl2::event::{Event};
 use sdl2::keyboard::Keycode;
 use sdl2::rect::{Rect};
 use sdl2::audio::{AudioSpecDesired};
 
-use std::time::Duration;
 use std::collections::{HashSet, HashMap};
 
-mod utils;
-mod synth;
-mod key;
-mod periodical_wave;
-
-// TODO put platform dependent code and import in a single module!
-#[cfg(target_os = "emscripten")]
-pub mod emscripten;
-
-#[cfg(target_os = "emscripten")]
-pub fn exit_application() -> () {
-    emscripten::emscripten::exit_application();
-}
-
-
-#[cfg(not(target_os = "emscripten"))]
-static mut quit: bool = false;
-
-#[cfg(not(target_os = "emscripten"))]
-pub fn exit_application() -> () {
-    unsafe {
-        quit = true;
-    }
-}
-
-
-
+use synth::audio_callback::Synthesizer;
 // const DEFAULT_FREQ : i32 = None;
 // const DEFAULT_CHANNEL_NUMBER : u8 = 2;
 // const DEFAULT_SAMPLE_SIZE : u16 = 2048;
@@ -43,7 +20,6 @@ pub fn exit_application() -> () {
 fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
-
     let window = video_subsystem.window("rust-sdl2 demo: Video", 800, 600)
         .position_centered()
         .opengl()
@@ -64,10 +40,10 @@ fn main() {
     let mut device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
         // initialize the audio callback
         println!("{:?}", spec);
-        synth::Synthesizer::new(spec.freq)
+        Synthesizer::new(spec.freq)
     }).unwrap();
 
-    synth::play(&mut device);
+    Synthesizer::toggle_audio(&mut device);
     let mut canvas = window.into_canvas()
         .build()
         .unwrap();
@@ -79,7 +55,6 @@ fn main() {
     let bg_color = Color::RGB(0, 0, 128);
     let mut rect = Rect::new(10, 10, 10, 10);
     // let mut phase_idx : usize = 0;
-    synth::play(&mut device);
     let mut prev_keys = HashSet::new();
     let mut keyboard_notes = HashMap::new();
     keyboard_notes.insert(Keycode::Q, 0 as usize);
@@ -98,16 +73,28 @@ fn main() {
     keyboard_notes.insert(Keycode::Comma, 13 as usize);
     keyboard_notes.insert(Keycode::Semicolon, 14 as usize);
     keyboard_notes.insert(Keycode::Colon, 15 as usize);
-    keyboard_notes.insert(Keycode::A, 24 as usize);
-    keyboard_notes.insert(Keycode::Z, 19 as usize);
-    keyboard_notes.insert(Keycode::E, 20 as usize);
-    keyboard_notes.insert(Keycode::R, 22 as usize);
+    keyboard_notes.insert(Keycode::A, 16 as usize);
+    keyboard_notes.insert(Keycode::Z, 17 as usize);
+    keyboard_notes.insert(Keycode::E, 18 as usize);
+    keyboard_notes.insert(Keycode::R, 19 as usize);
+    keyboard_notes.insert(Keycode::U, 20 as usize);
+    keyboard_notes.insert(Keycode::I, 21 as usize);
+    keyboard_notes.insert(Keycode::O, 22 as usize);
+    keyboard_notes.insert(Keycode::P, 23 as usize);
+    keyboard_notes.insert(Keycode::Num1, 24 as usize);
+    keyboard_notes.insert(Keycode::Num2, 25 as usize);
+    keyboard_notes.insert(Keycode::Num3, 26 as usize);
+    keyboard_notes.insert(Keycode::Num4, 27 as usize);
+    keyboard_notes.insert(Keycode::Num7, 28 as usize);
+    keyboard_notes.insert(Keycode::Num8, 29 as usize);
+    keyboard_notes.insert(Keycode::Num9, 30 as usize);
+    keyboard_notes.insert(Keycode::Num0, 31 as usize);
 
-    let mut main_loop = || {
+    let main_loop = || {
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-                    exit_application();
+                    platform::exit_application();
                     println!("Application exited!");
                 },
                 Event::KeyDown { keycode: Some(Keycode::Left), ..} => {
@@ -123,17 +110,17 @@ fn main() {
                     rect.y += 10;
                 },
                 Event::KeyDown { keycode: Some(Keycode::F1), ..} => {
-                    synth::play(&mut device);
+                    Synthesizer::toggle_audio(&mut device);
                 },
-                Event::KeyDown { keycode: Some(Keycode::Y), ..} => {
+                Event::KeyDown { keycode: Some(Keycode::KpEnter), ..} => {
                     let lock = device.lock();
                     println!("volume -> {}", lock.volume);
                 },
-                Event::KeyDown { keycode: Some(Keycode::O), ..} => {
+                Event::KeyDown { keycode: Some(Keycode::KpMinus), ..} => {
                     let mut lock = device.lock();
                     (*lock).change_volume(-0.1);
                 },
-                Event::KeyDown { keycode: Some(Keycode::P), ..} => {
+                Event::KeyDown { keycode: Some(Keycode::KpPlus), ..} => {
                     let mut lock = device.lock();
                     (*lock).change_volume(0.1);
                 },
@@ -141,13 +128,14 @@ fn main() {
             }
         }
 
-        let keys = event_pump.keyboard_state().pressed_scancodes().filter_map(Keycode::from_scancode).collect();
+        // TODO wrap me?
+        let keys = event_pump.keyboard_state()
+            .pressed_scancodes()
+            .filter_map(Keycode::from_scancode)
+            .collect();
+
         let new_keys = &keys - &prev_keys;
         let old_keys = &prev_keys - &keys;
-
-        // if !new_keys.is_empty() || !old_keys.is_empty() {
-        //     println!("new_keys: {:?}\told_keys:{:?}", new_keys, old_keys);
-        // }
 
         for key in new_keys {
             match keyboard_notes.get(&key) {
@@ -174,26 +162,28 @@ fn main() {
         canvas.clear();
 
         canvas.set_draw_color(sprite_color);
-        // TODO RTFM for this ret val...
+        // TODO handle driver failure?
         let _ = canvas.fill_rect(rect);
 
+        synth::renderer::display_cell
         canvas.present();
 
         //
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 30));
+        // ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 30));
+        platform::sleep();
 
     };
 
+    // #[cfg(target_os = "emscripten")]
+    // emscripten::emscripten::set_main_loop_callback(main_loop);
 
-    #[cfg(target_os = "emscripten")]
-    emscripten::emscripten::set_main_loop_callback(main_loop);
-
-    #[cfg(not(target_os = "emscripten"))]
-    'running: loop {
-        main_loop();
-        unsafe {
-        if quit {
-            break
-        }}
-    }
+    // #[cfg(not(target_os = "emscripten"))]
+    // 'running: loop {
+    //     main_loop();
+    //     unsafe {
+    //     if quit {
+    //         break
+    //     }}
+    // }
+    platform::start_loop(main_loop);
 }

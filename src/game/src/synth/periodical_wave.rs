@@ -1,10 +1,11 @@
 use std::f32::consts::PI;
 
 #[derive(Clone, Copy)]
-pub enum Oscilator_Type {
-    SINE,
-    SAW,
-    SQUARE,
+pub enum OscilatorType {
+    Sine,
+    Saw,
+    Square,
+    Triangle
 }
 // Pulse osc is just another primitive with proper envelop
 
@@ -24,4 +25,8 @@ pub fn square_wave(time: f32, period: f32) -> f32 {
     } else {
         -1.0
     }
+}
+
+pub fn triangle_wave(time: f32, period: f32) -> f32 {
+    square_wave(time, period) * saw_wave(time, period)
 }

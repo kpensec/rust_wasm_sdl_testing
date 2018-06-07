@@ -1,4 +1,5 @@
-use periodical_wave::{sine_wave, square_wave, saw_wave, Oscilator_Type};
+// use periodical_wave::{sine_wave, square_wave, saw_wave, OscilatorType};
+use synth::periodical_wave::{*};
 use utils::clamp;
 
 #[derive(Clone, Copy)]
@@ -9,14 +10,14 @@ pub struct Key {
     pub release_duration: f32,
     pub tone: i32,
     pub volume: f32,
-    osc_type: Oscilator_Type,
+    osc_type: OscilatorType,
     attack_end: f32,
     release_end: f32,
     time: f32,
 }
 
 impl Key {
-    pub fn new(tone: i32, osc_type: Oscilator_Type) -> Self {
+    pub fn new(tone: i32, osc_type: OscilatorType) -> Self {
         Key {
             active: false,
             down: false,
@@ -66,10 +67,10 @@ impl Key {
             // TODO hash-map or jump table me!
             let volume = self.volume * global_volume;
             let sample = match self.osc_type {
-                Oscilator_Type::SINE => sine_wave(self.time, self.tone as f32),
-                Oscilator_Type::SAW => saw_wave(self.time, self.tone as f32),
-                // Oscilator_Type::WHITE_NOISE => get_white_noise_sample(self.volume, rng.next_f32() as f32)
-                Oscilator_Type::SQUARE => square_wave(self.time, self.tone as f32),
+                OscilatorType::Sine     => sine_wave(self.time, self.tone as f32),
+                OscilatorType::Saw      => saw_wave(self.time, self.tone as f32),
+                OscilatorType::Triangle => triangle_wave(self.time, self.tone as f32),
+                OscilatorType::Square   => square_wave(self.time, self.tone as f32),
             };
             clamp(sample * volume, -1.0, 1.0)
         } else {
