@@ -91,7 +91,8 @@ impl Synthesizer {
 }
 
 fn mix_samples(lhs: f32, rhs: f32) -> f32 {
-    if lhs != 0.0 && rhs != 0.0 { lhs * rhs } else { rhs + lhs }// - if lhs.signum() == rhs.signum() { lhs * rhs.abs() } else { 0.0 }
+    lhs - rhs
+    //if lhs != 0.0 && rhs != 0.0 { lhs * rhs } else { rhs + lhs }// - if lhs.signum() == rhs.signum() { lhs * rhs.abs() } else { 0.0 }
 }
 
 impl AudioCallback for Synthesizer {

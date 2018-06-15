@@ -1,6 +1,8 @@
-// use periodical_wave::{sine_wave, square_wave, saw_wave, OscilatorType};
 use synth::periodical_wave::{*};
 use utils::clamp;
+
+// TODO need serious rework envelop 
+
 
 #[derive(Clone, Copy)]
 pub struct Key {
@@ -65,10 +67,13 @@ impl Key {
             }
 
             // TODO hash-map or jump table me!
+            // TODO find a way to structure with modulation and envelop
             let volume = self.volume * global_volume;
             let sample = match self.osc_type {
-                OscilatorType::Sine     => sine_wave(self.time, self.tone as f32),
-                OscilatorType::Saw      => saw_wave(self.time, self.tone as f32),
+                OscilatorType::Sine     => sine_wave(self.time + 0.01 * saw_wave(self.time, 2.0) + 0.2 * triangle_wave(self.time, 8.0), self.tone as f32)
+                    + 0.25 * sine_wave(self.time + 0.02 * saw_wave(self.time, 5.0), self.tone as f32 * 2.0)
+                    + 0.30 * sine_wave(self.time + 0.2 * saw_wave(self.time, 10.0), self.tone as f32 * 1.5),
+                OscilatorType::Saw      => saw_wave(self.time + 0.2 * sine_wave(self.time, 1.0), self.tone as f32),
                 OscilatorType::Triangle => triangle_wave(self.time, self.tone as f32),
                 OscilatorType::Square   => square_wave(self.time, self.tone as f32),
             };

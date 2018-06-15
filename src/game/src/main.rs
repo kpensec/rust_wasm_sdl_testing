@@ -90,6 +90,11 @@ fn main() {
     keyboard_notes.insert(Keycode::Num9, 30 as usize);
     keyboard_notes.insert(Keycode::Num0, 31 as usize);
 
+    let mut x = 0.0;
+    let mut y = 0.0;
+    let mut vx = 10.0;
+    let mut vy = 10.0;
+
     let main_loop = || {
         for event in event_pump.poll_iter() {
             match event {
@@ -165,7 +170,19 @@ fn main() {
         // TODO handle driver failure?
         let _ = canvas.fill_rect(rect);
 
-        synth::renderer::display_cell
+        for i in 0..2 {
+            let xx = 8 + (x as i32 + i);
+            let yy = 8 + (y as i32 - i);
+            synth::renderer::display_cell(&mut canvas, xx, yy);
+        }
+        const eps: f32 = 1.0 / 30.0;
+        x = x + vx * eps;
+        y = y + vy * eps;
+        if x > 0.0 { vx = -2.0;} 
+        if x < -10.0 { vx = 2.0;}
+        if y > 32.0 { vy = -5.0 }
+        if y < 5.0 { vy = 5.0}
+
         canvas.present();
 
         //
