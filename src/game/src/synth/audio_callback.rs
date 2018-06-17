@@ -1,5 +1,5 @@
 extern crate rand;
-// used in noise gen 
+// used in noise gen
 // use self::rand::{Rng, thread_rng};
 
 use sdl2::audio::{AudioStatus, AudioDevice, AudioCallback};
@@ -8,23 +8,17 @@ use utils::clamp;
 
 use synth::key::Key;
 use synth::periodical_wave::OscilatorType;
+use synth::envelop::Envelop;
 
 
 pub struct Synthesizer {
     pub volume: f32,
     pub freq: i32,
+    pub envelop: Envelop,
     sample_number: i32,
     keys: [Key; 32],
     // rng: Rng,
 }
-
-//pub fn get_white_noise_sample(noise: Noise, volume: f32, rng_number: f32) -> f32 {
-//    noise.get_sample(rng_number) * volume
-//}
-//pub fn get_white_noise_sample(tone: i32, time: f32, volume: f32) -> f32 {
-//    (rng.next_f32() as f32 * 2.0 - 1.0) * volume
-//}
-
 
 impl Synthesizer {
     pub fn change_volume(&mut self, q: f32) {
@@ -33,42 +27,50 @@ impl Synthesizer {
 
     pub fn new(freq: i32) -> Self{
         Synthesizer {
-            volume: 0.5,
+            volume: 0.2,
             freq: freq,
+            envelop: Envelop{
+                attack: 0.0,
+                decay: 0.5,
+                release: 1.0,
+                peakAmp: 1.0,
+                sustainAmp: 0.5,
+
+            },
             sample_number: 0,
             keys: [
-                Key::new(262, OscilatorType::Sine),
-                Key::new(294, OscilatorType::Sine),
-                Key::new(330, OscilatorType::Sine),
-                Key::new(349, OscilatorType::Sine),
-                Key::new(392, OscilatorType::Sine),
-                Key::new(440, OscilatorType::Sine),
-                Key::new(494, OscilatorType::Sine),
-                Key::new(523, OscilatorType::Sine),
-                Key::new(262, OscilatorType::Saw),
-                Key::new(294, OscilatorType::Saw),
-                Key::new(330, OscilatorType::Saw),
-                Key::new(349, OscilatorType::Saw),
-                Key::new(392, OscilatorType::Saw),
-                Key::new(440, OscilatorType::Saw),
-                Key::new(494, OscilatorType::Saw),
-                Key::new(523, OscilatorType::Saw),
-                Key::new(262, OscilatorType::Square),
-                Key::new(294, OscilatorType::Square),
-                Key::new(330, OscilatorType::Square),
-                Key::new(349, OscilatorType::Square),
-                Key::new(392, OscilatorType::Square),
-                Key::new(440, OscilatorType::Square),
-                Key::new(494, OscilatorType::Square),
-                Key::new(523, OscilatorType::Square),
-                Key::new(262, OscilatorType::Triangle),
-                Key::new(294, OscilatorType::Triangle),
-                Key::new(330, OscilatorType::Triangle),
-                Key::new(349, OscilatorType::Triangle),
-                Key::new(392, OscilatorType::Triangle),
-                Key::new(440, OscilatorType::Triangle),
-                Key::new(494, OscilatorType::Triangle),
-                Key::new(523, OscilatorType::Triangle),
+                Key::new(0, OscilatorType::Sine),
+                Key::new(1, OscilatorType::Sine),
+                Key::new(2, OscilatorType::Sine),
+                Key::new(3, OscilatorType::Sine),
+                Key::new(4, OscilatorType::Sine),
+                Key::new(5, OscilatorType::Sine),
+                Key::new(6, OscilatorType::Sine),
+                Key::new(7, OscilatorType::Sine),
+                Key::new(8, OscilatorType::Sine),
+                Key::new(9, OscilatorType::Sine),
+                Key::new(10, OscilatorType::Sine),
+                Key::new(11, OscilatorType::Sine),
+                Key::new(12, OscilatorType::Sine),
+                Key::new(7, OscilatorType::Saw),
+                Key::new(7, OscilatorType::Saw),
+                Key::new(7, OscilatorType::Saw),
+                Key::new(7, OscilatorType::Square),
+                Key::new(7, OscilatorType::Square),
+                Key::new(7, OscilatorType::Square),
+                Key::new(7, OscilatorType::Square),
+                Key::new(7, OscilatorType::Square),
+                Key::new(7, OscilatorType::Square),
+                Key::new(7, OscilatorType::Square),
+                Key::new(7, OscilatorType::Square),
+                Key::new(7, OscilatorType::Triangle),
+                Key::new(7, OscilatorType::Triangle),
+                Key::new(7, OscilatorType::Triangle),
+                Key::new(7, OscilatorType::Triangle),
+                Key::new(7, OscilatorType::Triangle),
+                Key::new(7, OscilatorType::Triangle),
+                Key::new(7, OscilatorType::Triangle),
+                Key::new(7, OscilatorType::Triangle),
                 ],
         }
     }
@@ -91,7 +93,7 @@ impl Synthesizer {
 }
 
 fn mix_samples(lhs: f32, rhs: f32) -> f32 {
-    lhs - rhs
+    lhs + rhs
     //if lhs != 0.0 && rhs != 0.0 { lhs * rhs } else { rhs + lhs }// - if lhs.signum() == rhs.signum() { lhs * rhs.abs() } else { 0.0 }
 }
 

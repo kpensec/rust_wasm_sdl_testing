@@ -5,28 +5,35 @@ pub enum OscilatorType {
     Sine,
     Saw,
     Square,
-    Triangle
+    Triangle,
+    Noise
 }
 // Pulse osc is just another primitive with proper envelop
 
-pub fn sine_wave(time: f32, period: f32) -> f32 {
-    (PI * 2.0 * time * period).sin()
+pub fn sine_wave(time: f32, freq: f32) -> f32 {
+    (PI * 2.0 * time * freq).sin()
 }
 
-pub fn saw_wave(time: f32, period: f32) -> f32 {
-    (2.0 * (period * time) - 1.0) % 1.0
+pub fn saw_wave(time: f32, freq: f32) -> f32 {
+    (2.0 * (freq * time) - 1.0) % 1.0
 }
 
-pub fn square_wave(time: f32, period: f32) -> f32 {
-    let iperiod = 1.0 / period;
-    let hiperiod = iperiod / 2.0;
-    if (time % iperiod) > hiperiod {
+pub fn square_wave(time: f32, freq: f32) -> f32 {
+    let ifreq = 1.0 / freq;
+    let hifreq = ifreq / 2.0;
+    if (time % ifreq) > hifreq {
         1.0
     } else {
         -1.0
     }
 }
 
-pub fn triangle_wave(time: f32, period: f32) -> f32 {
-    square_wave(time, period) * saw_wave(time, period)
+pub fn triangle_wave(time: f32, freq: f32) -> f32 {
+    square_wave(time, freq) * saw_wave(time, freq)
+}
+
+use synth::rand;
+pub fn noise_wave(time: f32, freq: f32) -> f32 {
+    // let mut rng = rand::thread_rng;
+    rand::random::<f32>()
 }

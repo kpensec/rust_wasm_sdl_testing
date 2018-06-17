@@ -95,6 +95,7 @@ fn main() {
     let mut vx = 10.0;
     let mut vy = 10.0;
 
+    let mut lastFrameTime: u32 = 0;
     let main_loop = || {
         for event in event_pump.poll_iter() {
             match event {
@@ -116,6 +117,10 @@ fn main() {
                 },
                 Event::KeyDown { keycode: Some(Keycode::F1), ..} => {
                     Synthesizer::toggle_audio(&mut device);
+                },
+                Event::KeyDown { keycode: Some(Keycode::F2), ..} => {
+                    let mut lock = device.lock();
+                    print!("info\nenvelop: {}\nvolume: {}", lock.envelop, lock.volume);
                 },
                 Event::KeyDown { keycode: Some(Keycode::KpEnter), ..} => {
                     let lock = device.lock();
@@ -185,22 +190,9 @@ fn main() {
 
         canvas.present();
 
-        //
-        // ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 30));
         platform::sleep();
 
     };
 
-    // #[cfg(target_os = "emscripten")]
-    // emscripten::emscripten::set_main_loop_callback(main_loop);
-
-    // #[cfg(not(target_os = "emscripten"))]
-    // 'running: loop {
-    //     main_loop();
-    //     unsafe {
-    //     if quit {
-    //         break
-    //     }}
-    // }
     platform::start_loop(main_loop);
 }
