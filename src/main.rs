@@ -3,6 +3,7 @@ extern crate sdl2;
 mod utils;
 mod synth;
 mod platform;
+mod renderer;
 
 use sdl2::pixels::Color;
 use sdl2::event::{Event};
@@ -12,21 +13,24 @@ use sdl2::audio::{AudioSpecDesired};
 
 use std::collections::{HashSet, HashMap};
 
-use synth::audio_callback::Synthesizer;
-// const DEFAULT_FREQ : i32 = None;
-// const DEFAULT_CHANNEL_NUMBER : u8 = 2;
-// const DEFAULT_SAMPLE_SIZE : u16 = 2048;
+use synth::Synthesizer;
 
 fn main() {
-    let sdl_context = sdl2::init().unwrap();
-    let video_subsystem = sdl_context.video().unwrap();
+    let sdl_context = sdl2::init()
+        .unwrap();
+
+    let video_subsystem = sdl_context.video()
+        .unwrap();
+
     let window = video_subsystem.window("rust-sdl2 demo: Video", 800, 600)
         .position_centered()
         .opengl()
         .build()
         .unwrap();
 
-    let audio_subsystem = sdl_context.audio().unwrap();
+    let audio_subsystem = sdl_context.audio()
+        .unwrap();
+
     // let desired_spec = AudioSpecDesired {
     //     freq: Some(DEFAULT_FREQ),
     //     channels: Some(DEFAULT_CHANNEL_NUMBER),  // mono
@@ -34,16 +38,14 @@ fn main() {
     // };
     let desired_spec = AudioSpecDesired {
         freq: None,
-        channels: None, 
+        channels: None,
         samples: None
     };
-    let mut device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
-        // initialize the audio callback
-        println!("{:?}", spec);
-        Synthesizer::new(spec.freq)
-    }).unwrap();
 
-    Synthesizer::toggle_audio(&mut device);
+    let device = audio_subsystem.open_queue::<f32,_>(None, &desired_spec)
+        .unwrap();
+
+    let synthesizer = Synthesizer::new();
     let mut canvas = window.into_canvas()
         .build()
         .unwrap();
@@ -70,33 +72,37 @@ fn main() {
     keyboard_notes.insert(Keycode::C, 10 as usize);
     keyboard_notes.insert(Keycode::V, 11 as usize);
     keyboard_notes.insert(Keycode::N, 12 as usize);
-    keyboard_notes.insert(Keycode::Comma, 13 as usize);
-    keyboard_notes.insert(Keycode::Semicolon, 14 as usize);
-    keyboard_notes.insert(Keycode::Colon, 15 as usize);
-    keyboard_notes.insert(Keycode::A, 16 as usize);
-    keyboard_notes.insert(Keycode::Z, 17 as usize);
-    keyboard_notes.insert(Keycode::E, 18 as usize);
-    keyboard_notes.insert(Keycode::R, 19 as usize);
-    keyboard_notes.insert(Keycode::U, 20 as usize);
-    keyboard_notes.insert(Keycode::I, 21 as usize);
-    keyboard_notes.insert(Keycode::O, 22 as usize);
-    keyboard_notes.insert(Keycode::P, 23 as usize);
-    keyboard_notes.insert(Keycode::Num1, 24 as usize);
-    keyboard_notes.insert(Keycode::Num2, 25 as usize);
-    keyboard_notes.insert(Keycode::Num3, 26 as usize);
-    keyboard_notes.insert(Keycode::Num4, 27 as usize);
-    keyboard_notes.insert(Keycode::Num7, 28 as usize);
-    keyboard_notes.insert(Keycode::Num8, 29 as usize);
-    keyboard_notes.insert(Keycode::Num9, 30 as usize);
-    keyboard_notes.insert(Keycode::Num0, 31 as usize);
+    // keyboard_notes.insert(Keycode::Comma, 13 as usize);
+    // keyboard_notes.insert(Keycode::Semicolon, 14 as usize);
+    // keyboard_notes.insert(Keycode::Colon, 15 as usize);
+    // keyboard_notes.insert(Keycode::A, 16 as usize);
+    // keyboard_notes.insert(Keycode::Z, 17 as usize);
+    // keyboard_notes.insert(Keycode::E, 18 as usize);
+    // keyboard_notes.insert(Keycode::R, 19 as usize);
+    // keyboard_notes.insert(Keycode::U, 20 as usize);
+    // keyboard_notes.insert(Keycode::I, 21 as usize);
+    // keyboard_notes.insert(Keycode::O, 22 as usize);
+    // keyboard_notes.insert(Keycode::P, 23 as usize);
+    // keyboard_notes.insert(Keycode::Num1, 24 as usize);
+    // keyboard_notes.insert(Keycode::Num2, 25 as usize);
+    // keyboard_notes.insert(Keycode::Num3, 26 as usize);
+    // keyboard_notes.insert(Keycode::Num4, 27 as usize);
+    // keyboard_notes.insert(Keycode::Num7, 28 as usize);
+    // keyboard_notes.insert(Keycode::Num8, 29 as usize);
+    // keyboard_notes.insert(Keycode::Num9, 30 as usize);
+    // keyboard_notes.insert(Keycode::Num0, 31 as usize);
 
     let mut x = 0.0;
     let mut y = 0.0;
     let mut vx = 10.0;
     let mut vy = 10.0;
+    let mut timer_subsystem = sdl_context.timer()
+        .unwrap();
+   
+    // let mut lastFrameTime: u32 = 0;
 
-    let mut lastFrameTime: u32 = 0;
     let main_loop = || {
+        // let time = timer_subsystem.ticks() as f32 / 1000.0;
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
@@ -116,12 +122,12 @@ fn main() {
                     rect.y += 10;
                 },
                 Event::KeyDown { keycode: Some(Keycode::F1), ..} => {
-                    Synthesizer::toggle_audio(&mut device);
+                    synthesizer.toggle_audio();
                 },
-                Event::KeyDown { keycode: Some(Keycode::F2), ..} => {
-                    let mut lock = device.lock();
-                    print!("info\nenvelop: {}\nvolume: {}", lock.envelop, lock.volume);
-                },
+                //Event::KeyDown { keycode: Some(Keycode::F2), ..} => {
+                //    let mut lock = device.lock();
+                //    print!("info\nenvelop: {}\nvolume: {}", lock.envelop, lock.volume);
+                //},
                 Event::KeyDown { keycode: Some(Keycode::KpEnter), ..} => {
                     let lock = device.lock();
                     println!("volume -> {}", lock.volume);
@@ -150,8 +156,7 @@ fn main() {
         for key in new_keys {
             match keyboard_notes.get(&key) {
                 Some(i) => {
-                    let mut lock = device.lock();
-                    (*lock).start_note(*i);
+                    synthesizer.start_note(*i);
                 }
                 _ => {}
             }
@@ -160,14 +165,17 @@ fn main() {
         for key in old_keys {
             match keyboard_notes.get(&key) {
                 Some(i) => {
-                    let mut lock = device.lock();
-                    (*lock).release_note(*i);
+                    synthesizer.release_note(*i);
                 }
                 _ => {}
             }
         }
 
         prev_keys = keys;
+        // TODO use real eps
+        const EPS: f32 = 1.0 / 30.0;
+
+        synthesizer.update(EPS);
         canvas.set_draw_color(bg_color);
         canvas.clear();
 
@@ -178,11 +186,10 @@ fn main() {
         for i in 0..2 {
             let xx = 8 + (x as i32 + i);
             let yy = 8 + (y as i32 - i);
-            synth::renderer::display_cell(&mut canvas, xx, yy);
+            renderer::display_cell(&mut canvas, xx, yy);
         }
-        const eps: f32 = 1.0 / 30.0;
-        x = x + vx * eps;
-        y = y + vy * eps;
+        x = x + vx * EPS;
+        y = y + vy * EPS;
         if x > 0.0 { vx = -2.0;} 
         if x < -10.0 { vx = 2.0;}
         if y > 32.0 { vy = -5.0 }

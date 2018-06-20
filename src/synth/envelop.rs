@@ -18,10 +18,10 @@ impl fmt::Display for Envelop {
 
 
 impl Envelop {
-    fn get_amplitude(self, time: f32, keyState: KeyState) -> f32 {
+    pub fn get_amplitude(self, time: f32, keyState: KeyState) -> f32 {
         match keyState {
-            KeyState::Pressed(startTime) => {
-                let lifeTime = time - startTime;
+            KeyState::Pressed => {
+                let lifeTime = time;
                 if lifeTime < self.attack {
                     lifeTime / self.attack * self.peakAmp
                 } else if lifeTime < self.decay {
@@ -31,9 +31,12 @@ impl Envelop {
                 }
             }
             KeyState::Released(endTime) => {
-                let dieTime = time - endTime;
+                let dyingTime = time - endTime;
                 // release_phase(dieTime);
                     0.0
+            }
+            KeyState::Mute => {
+                0.0
             }
         }
     }
