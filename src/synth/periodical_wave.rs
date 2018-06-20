@@ -33,7 +33,7 @@ pub fn triangle_wave(time: f32, freq: f32) -> f32 {
 }
 
 use synth::rand;
-pub fn noise_wave(time: f32, freq: f32) -> f32 {
+pub fn noise_wave(_time: f32, _freq: f32) -> f32 {
     // let mut rng = rand::thread_rng;
     rand::random::<f32>()
 }
