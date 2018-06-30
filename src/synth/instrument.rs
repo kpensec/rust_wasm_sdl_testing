@@ -1,5 +1,6 @@
 use synth::periodical_wave::{*};
 use synth::envelop::Envelop;
+use synth::note::get_note_freq;
 
 #[derive(Clone, Copy)]
 struct LowFrequencyOscillator {
@@ -25,10 +26,10 @@ impl TestInstrument {
         TestInstrument {
             envelop: Envelop{
                 attack: 0.05,
-                decay: 0.2,
+                decay: 0.15,
                 release: 0.1,
                 peak_amp: 1.0,
-                sustain_amp: 0.8
+                sustain_amp: 0.5
             },
             lfo: LowFrequencyOscillator{
                 amplitude: 0.0000002,
@@ -36,16 +37,12 @@ impl TestInstrument {
             }
         }
     }
-    pub fn get_sample(self, time: f32, tone_freq: f32) -> f32 {
-         square_wave(time, 2.0 * tone_freq)
-             + square_wave(time, tone_freq) * 0.5
-             + square_wave(time, tone_freq*0.8) * 1.5
-             + sine_wave(time + self.lfo.get(time), tone_freq*2.777) * 0.8
-        // + 0.2 * sine_wave(time + self.amplitude_lfo * sine_wave(time, self.freq_lfo), tone_freq*1.2)
-        //+ 0.2 * sine_wave(time + self.amplitude_lfo * sine_wave(time, self.freq_lfo), tone_freq*0.8)
-        //0.2 * saw_wave(time, tone_freq)
-        //    + 0.2 * square_wave(time + self.lfo.get(time), tone_freq*0.7)
-        //    + 0.1 * square_wave(time + self.lfo.get(time), tone_freq*2.0)
-        //    + 0.15 * square_wave(time + self.lfo.get(time), tone_freq*2.5)
+    pub fn get_sample(self, time: f32, note: i32) -> f32 {
+        let tone_1 = get_note_freq(note - 24);
+        let tone_2 = get_note_freq(note + 24);
+        square_wave(time + self.lfo.get(time), tone_1) * 0.45
+            + saw_wave(time + self.lfo.get(2.0*time), tone_2) * 0.45
+            + noise(time, 0.0) * 0.10
     }
 }
+

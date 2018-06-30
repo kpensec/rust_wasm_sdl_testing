@@ -31,22 +31,19 @@ fn main() {
     let audio_subsystem = sdl_context.audio()
         .unwrap();
 
-    // let desired_spec = AudioSpecDesired {
-    //     freq: Some(DEFAULT_FREQ),
-    //     channels: Some(DEFAULT_CHANNEL_NUMBER),  // mono
-    //     samples: Some(DEFAULT_SAMPLE_SIZE) // default sample size
-    // };
     let desired_spec = AudioSpecDesired {
+        //freq: Some(44_100),
         freq: Some(22_050),
         channels: Some(2),
-        samples: Some(512) 
+        samples: None
     };
 
-    let device = audio_subsystem.open_queue::<f32,_>(None, &desired_spec)
-        .unwrap();
+    let mut device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+        println!("{:?}", spec);
+        Synthesizer::new(spec.freq)
+    }).unwrap();
     device.resume();
 
-    let mut synthesizer = Synthesizer::new(device.spec().freq);
     let mut canvas = window.into_canvas()
         .build()
         .unwrap();
@@ -57,7 +54,6 @@ fn main() {
     let sprite_color = Color::RGB(255, 255, 255);
     let bg_color = Color::RGB(0, 0, 128);
     let mut rect = Rect::new(10, 10, 10, 10);
-    // let mut phase_idx : usize = 0;
     let mut prev_keys = HashSet::new();
     let mut keyboard_notes = HashMap::new();
 
@@ -79,14 +75,8 @@ fn main() {
     let mut y = 0.0;
     let mut vx = 10.0;
     let mut vy = 10.0;
-    let mut _timer_subsystem = sdl_context.timer()
-        .unwrap();
    
-    // let mut lastFrameTime: u32 = 0;
-    println!("device specs: {:?}", device.spec());
     let main_loop = || {
-        // let mut synthesizer = &mut synthesizer;
-        // let time = timer_subsystem.ticks() as f32 / 1000.0;
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
@@ -106,23 +96,27 @@ fn main() {
                     rect.y += 10;
                 },
                 Event::KeyDown { keycode: Some(Keycode::F1), ..} => {
-                    synthesizer.toggle_audio();
+                    let mut lock = device.lock();
+                    (*lock).toggle_audio();
                 },
                 Event::KeyDown { keycode: Some(Keycode::F2), ..} => {
-                    println!("queue size: {}", device.size());
                 },
                 //Event::KeyDown { keycode: Some(Keycode::F2), ..} => {
                 //    let mut lock = device.lock();
                 //    print!("info\nenvelop: {}\nvolume: {}", lock.envelop, lock.volume);
                 //},
                 Event::KeyDown { keycode: Some(Keycode::KpEnter), ..} => {
-                    println!("volume -> {}", synthesizer.get_volume());
+                    let mut lock = device.lock();
+                    println!("volume -> {}", (*lock).get_volume());
                 },
                 Event::KeyDown { keycode: Some(Keycode::KpMinus), ..} => {
-                    synthesizer.set_volume(-0.1);
+                    let mut lock = device.lock();
+                    (*lock).set_volume(-0.1);
+                    
                 },
                 Event::KeyDown { keycode: Some(Keycode::KpPlus), ..} => {
-                    synthesizer.set_volume(0.1);
+                    let mut lock = device.lock();
+                    (*lock).set_volume(0.1);
                 },
                 _ => {}
             }
@@ -140,7 +134,8 @@ fn main() {
         for key in new_keys {
             match keyboard_notes.get(&key) {
                 Some(i) => {
-                    synthesizer.start_note(*i);
+                    let mut lock = device.lock();
+                    (*lock).start_note(*i);
                 }
                 _ => {}
             }
@@ -149,36 +144,19 @@ fn main() {
         for key in old_keys {
             match keyboard_notes.get(&key) {
                 Some(i) => {
-                    synthesizer.release_note(*i);
+                    let mut lock = device.lock();
+                    (*lock).release_note(*i);
                 }
                 _ => {}
             }
         }
 
         prev_keys = keys;
-        // TODO use real eps
-        const EPS: f32 = 1.0 / 30.0;
-        if device.size() <= 4096 * 2  {
-        //audio_timer = (256) as f32 / device.spec().freq as f32;
-        //    let buffer = &synthesizer.update(EPS);
-        //    if buffer.is_empty() {
-        //        println!("?");
-        //    } else {
-        //        if buffer[0] != 0.0 {
-        //            println!("{:?}", buffer);
-        //        }
-        //    }
-        //    device.queue(&buffer);
-        // }
-            device.queue(&synthesizer.update(EPS));
-        }
-        
 
         canvas.set_draw_color(bg_color);
         canvas.clear();
 
         canvas.set_draw_color(sprite_color);
-        // TODO handle driver failure?
         let _ = canvas.fill_rect(rect);
 
         for i in 0..2 {
@@ -186,6 +164,7 @@ fn main() {
             let yy = 8 + (y as i32 - i);
             let _ = renderer::display_cell(&mut canvas, xx, yy);
         }
+        const EPS : f32 = 1.0/30.0;
         x = x + vx * EPS;
         y = y + vy * EPS;
         if x > 0.0 { vx = -2.0;} 
