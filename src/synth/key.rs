@@ -1,30 +1,14 @@
-use synth::periodical_wave::{*};
 use utils::clamp;
-
 use synth::note;
-use synth::envelop::Envelop;
-
-#[derive(Clone, Copy)]
-pub struct Instrument {
-    pub envelop: Envelop,
-    pub amplitudeLFO: f32,
-    pub freqLFO: f32
-}
-
-impl Instrument {
-    pub fn get_sample(self, time: f32, toneFreq: f32) -> f32 {
-        saw_wave(time + self.amplitudeLFO * sine_wave(time, self.freqLFO), toneFreq) 
-    }
-}
-
+use synth::instrument::TestInstrument;
 #[derive(Clone, Copy)]
 pub struct Key {
     pub active: bool,
-    pub toneFreq: f32,
+    pub tone_freq: f32,
     pub volume: f32,
     time: f32,
-    keyState: KeyState,
-    instrument: Instrument,
+    key_state: KeyState,
+    instrument: TestInstrument,
 }
 
 #[derive(Clone, Copy)]
@@ -34,37 +18,26 @@ pub enum KeyState {
     Mute,
 }
 
-
 impl Key {
-    pub fn new(toneIdx: i32) -> Self {
+    pub fn new(tone_idx: i32) -> Self {
         Key {
             active: false,
-            toneFreq: note::get_note_freq(toneIdx),
+            tone_freq: note::get_note_freq(tone_idx),
             volume: 0.2,
             time: 0.0,
-            keyState: KeyState::Mute,
-            instrument: Instrument{
-                envelop: Envelop{
-                    attack: 0.5,
-                    decay: 2.0,
-                    release: 1.0,
-                    peakAmp: 1.0,
-                    sustainAmp: 0.8
-                },
-                amplitudeLFO: 0.2,
-                freqLFO: 1.000,
-            },
+            key_state: KeyState::Mute,
+            instrument: TestInstrument::new()
         }
     }
 
-    pub fn get_state(self) -> KeyState {
-        self.keyState
+    pub fn _get_state(self) -> KeyState {
+        self.key_state
     }
 
     pub fn press(&mut self) -> () {
-        match self.keyState {
+        match self.key_state {
             KeyState::Mute => {
-                self.keyState = KeyState::Pressed;
+                self.key_state = KeyState::Pressed;
                 self.active = true;
                 self.time = 0.0;
             },
@@ -73,20 +46,20 @@ impl Key {
     }
 
     pub fn release(&mut self) {
-        if let KeyState::Pressed = self.keyState {
-            self.keyState = KeyState::Released(self.time);
+        if let KeyState::Pressed = self.key_state {
+            self.key_state = KeyState::Released(self.time);
         }
     }
 
     pub fn update(&mut self, global_volume: f32, eps: f32) -> f32 {
         let volume = self.volume * global_volume;
-        let envelop_amplitude = self.instrument.envelop.get_amplitude(self.time, self.keyState);
-        let instrument_sample = self.instrument.get_sample(self.time, self.toneFreq);
+        let envelop_amplitude = self.instrument.envelop.get_amplitude(self.time, self.key_state);
+        let instrument_sample = self.instrument.get_sample(self.time, self.tone_freq);
         self.time += eps;
-        match self.keyState {
+        match self.key_state {
             KeyState::Released(..) => {
                 if envelop_amplitude == 0.0 {
-                    self.keyState = KeyState::Mute;
+                    self.key_state = KeyState::Mute;
                     self.active = false;
                 }
             },

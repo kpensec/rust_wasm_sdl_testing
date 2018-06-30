@@ -5,14 +5,16 @@ mod periodical_wave;
 mod noise;
 mod envelop;
 mod note;
+mod instrument;
 
 use utils::clamp;
 use synth::key::Key;
+use std::vec::Vec;
 
 pub struct Synthesizer {
     volume: f32,
-    playback_freq: i32,
-    sample_number: i32,
+    _playback_freq: i32,
+    buffer_size: usize,
     keys: [Key; 13],
     step: f32,
     active: bool,
@@ -22,9 +24,9 @@ impl Synthesizer {
 
     pub fn new(playback_freq: i32) -> Self{
         Synthesizer {
-            volume: 0.2,
-            playback_freq: playback_freq,
-            sample_number: 0,
+            volume: 1.0,
+            _playback_freq: playback_freq,
+            buffer_size: 2048,
             keys: [ Key::new(0), Key::new(1), Key::new(2), Key::new(3), Key::new(4), Key::new(5), Key::new(6),
                 Key::new(7), Key::new(8), Key::new(9), Key::new(10), Key::new(11), Key::new(12), ],
             step: 1.0 / playback_freq as f32,
@@ -32,7 +34,7 @@ impl Synthesizer {
         }
     }
 
-    pub fn get_volume(self) -> f32 {
+    pub fn get_volume(&self) -> f32 {
         self.volume
     }
     pub fn set_volume(&mut self, q: f32) {
@@ -55,29 +57,35 @@ impl Synthesizer {
     }
 
     fn get_sample(&mut self) -> f32 {
-        let result = 0.0;
+        let mut result = 0.0;
         for key in self.keys.iter_mut() {
-            self.blend_sample(result, key.update(self.volume, self.step));
+            result = Self::blend_sample(result, key.update(self.volume, self.step));
         }
         result
     }
-    pub fn update(&mut self, eps: f32) -> Vec<f32> {
+
+    pub fn update(&mut self, _eps: f32) -> Vec<f32> {
         // TODO this should update/return the audio queue buffer!
-        let mut result = Vec::with_capacity(self.buffer_size);
+        let mut result = Vec::<f32>::with_capacity(self.buffer_size);
         if ! self.active {
-            result
+            ()
         }
 
-        for x in 0..self.buffer_size {
+        for _ in 0usize..self.buffer_size {
             let sample = self.get_sample();
-            // TODO search 
+            // TODO search
             result.push(sample);
             result.push(sample);
         }
-
+        result
     }
 
     pub fn toggle_audio(&mut self) -> (){
         self.active = ! self.active;
     }
+
+    pub fn is_active(&self) -> bool {
+        self.active
+    }
 }
+

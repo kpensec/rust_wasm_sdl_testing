@@ -37,15 +37,16 @@ fn main() {
     //     samples: Some(DEFAULT_SAMPLE_SIZE) // default sample size
     // };
     let desired_spec = AudioSpecDesired {
-        freq: None,
-        channels: None,
-        samples: None
+        freq: Some(22_050),
+        channels: Some(2),
+        samples: Some(512) 
     };
 
     let device = audio_subsystem.open_queue::<f32,_>(None, &desired_spec)
         .unwrap();
+    device.resume();
 
-    let synthesizer = Synthesizer::new();
+    let mut synthesizer = Synthesizer::new(device.spec().freq);
     let mut canvas = window.into_canvas()
         .build()
         .unwrap();
@@ -59,6 +60,7 @@ fn main() {
     // let mut phase_idx : usize = 0;
     let mut prev_keys = HashSet::new();
     let mut keyboard_notes = HashMap::new();
+
     keyboard_notes.insert(Keycode::Q, 0 as usize);
     keyboard_notes.insert(Keycode::S, 1 as usize);
     keyboard_notes.insert(Keycode::D, 2 as usize);
@@ -72,36 +74,18 @@ fn main() {
     keyboard_notes.insert(Keycode::C, 10 as usize);
     keyboard_notes.insert(Keycode::V, 11 as usize);
     keyboard_notes.insert(Keycode::N, 12 as usize);
-    // keyboard_notes.insert(Keycode::Comma, 13 as usize);
-    // keyboard_notes.insert(Keycode::Semicolon, 14 as usize);
-    // keyboard_notes.insert(Keycode::Colon, 15 as usize);
-    // keyboard_notes.insert(Keycode::A, 16 as usize);
-    // keyboard_notes.insert(Keycode::Z, 17 as usize);
-    // keyboard_notes.insert(Keycode::E, 18 as usize);
-    // keyboard_notes.insert(Keycode::R, 19 as usize);
-    // keyboard_notes.insert(Keycode::U, 20 as usize);
-    // keyboard_notes.insert(Keycode::I, 21 as usize);
-    // keyboard_notes.insert(Keycode::O, 22 as usize);
-    // keyboard_notes.insert(Keycode::P, 23 as usize);
-    // keyboard_notes.insert(Keycode::Num1, 24 as usize);
-    // keyboard_notes.insert(Keycode::Num2, 25 as usize);
-    // keyboard_notes.insert(Keycode::Num3, 26 as usize);
-    // keyboard_notes.insert(Keycode::Num4, 27 as usize);
-    // keyboard_notes.insert(Keycode::Num7, 28 as usize);
-    // keyboard_notes.insert(Keycode::Num8, 29 as usize);
-    // keyboard_notes.insert(Keycode::Num9, 30 as usize);
-    // keyboard_notes.insert(Keycode::Num0, 31 as usize);
 
     let mut x = 0.0;
     let mut y = 0.0;
     let mut vx = 10.0;
     let mut vy = 10.0;
-    let mut timer_subsystem = sdl_context.timer()
+    let mut _timer_subsystem = sdl_context.timer()
         .unwrap();
    
     // let mut lastFrameTime: u32 = 0;
-
+    println!("device specs: {:?}", device.spec());
     let main_loop = || {
+        // let mut synthesizer = &mut synthesizer;
         // let time = timer_subsystem.ticks() as f32 / 1000.0;
         for event in event_pump.poll_iter() {
             match event {
@@ -124,21 +108,21 @@ fn main() {
                 Event::KeyDown { keycode: Some(Keycode::F1), ..} => {
                     synthesizer.toggle_audio();
                 },
+                Event::KeyDown { keycode: Some(Keycode::F2), ..} => {
+                    println!("queue size: {}", device.size());
+                },
                 //Event::KeyDown { keycode: Some(Keycode::F2), ..} => {
                 //    let mut lock = device.lock();
                 //    print!("info\nenvelop: {}\nvolume: {}", lock.envelop, lock.volume);
                 //},
                 Event::KeyDown { keycode: Some(Keycode::KpEnter), ..} => {
-                    let lock = device.lock();
-                    println!("volume -> {}", lock.volume);
+                    println!("volume -> {}", synthesizer.get_volume());
                 },
                 Event::KeyDown { keycode: Some(Keycode::KpMinus), ..} => {
-                    let mut lock = device.lock();
-                    (*lock).change_volume(-0.1);
+                    synthesizer.set_volume(-0.1);
                 },
                 Event::KeyDown { keycode: Some(Keycode::KpPlus), ..} => {
-                    let mut lock = device.lock();
-                    (*lock).change_volume(0.1);
+                    synthesizer.set_volume(0.1);
                 },
                 _ => {}
             }
@@ -174,8 +158,22 @@ fn main() {
         prev_keys = keys;
         // TODO use real eps
         const EPS: f32 = 1.0 / 30.0;
+        if device.size() <= 4096 * 2  {
+        //audio_timer = (256) as f32 / device.spec().freq as f32;
+        //    let buffer = &synthesizer.update(EPS);
+        //    if buffer.is_empty() {
+        //        println!("?");
+        //    } else {
+        //        if buffer[0] != 0.0 {
+        //            println!("{:?}", buffer);
+        //        }
+        //    }
+        //    device.queue(&buffer);
+        // }
+            device.queue(&synthesizer.update(EPS));
+        }
+        
 
-        synthesizer.update(EPS);
         canvas.set_draw_color(bg_color);
         canvas.clear();
 
@@ -186,7 +184,7 @@ fn main() {
         for i in 0..2 {
             let xx = 8 + (x as i32 + i);
             let yy = 8 + (y as i32 - i);
-            renderer::display_cell(&mut canvas, xx, yy);
+            let _ = renderer::display_cell(&mut canvas, xx, yy);
         }
         x = x + vx * EPS;
         y = y + vy * EPS;

@@ -1,9 +1,9 @@
 
-struct Noise {
-    pub padding: f32,
-    amplitude: f32,
-    amp_coeff: f32,
-}
+//struct Noise {
+//    pub padding: f32,
+//    amplitude: f32,
+//    amp_coeff: f32,
+//}
 
 //impl Noise {
 //    pub fn new(amp: f32, padding: f32) {
