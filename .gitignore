@@ -9,3 +9,8 @@ emsdk_set_env.sh
 .cache
 .yo-rc.json
 *.swp
+
+msvc/
+gnu-mingw/
+*.dll
+.vim/
