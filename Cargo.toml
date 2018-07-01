@@ -4,6 +4,13 @@ version = "0.1.0"
 authors = ["Oropiko <nope@nopemail.nope>"]
 
 [dependencies]
-sdl2 = "*"
 rand = "*"
 
+[dependencies.sdl2]
+version = "0.31"
+default-features = false
+features = ["ttf"]
+
+
+[features]
+ttf = []

@@ -14,3 +14,4 @@ msvc/
 gnu-mingw/
 *.dll
 .vim/
+fonts/

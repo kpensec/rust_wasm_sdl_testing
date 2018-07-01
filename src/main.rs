@@ -10,10 +10,64 @@ use sdl2::event::{Event};
 use sdl2::keyboard::Keycode;
 use sdl2::rect::{Rect};
 use sdl2::audio::{AudioSpecDesired};
+use sdl2::render::{TextureQuery};
 
 use std::collections::{HashSet, HashMap};
+use std::path::Path;
 
 use synth::Synthesizer;
+
+static SCREEN_WIDTH : u32 = 800;
+static SCREEN_HEIGHT : u32 = 600;
+
+// handle the annoying Rect i32
+macro_rules! rect(
+    ($x:expr, $y:expr, $w:expr, $h:expr) => (
+        Rect::new($x as i32, $y as i32, $w as u32, $h as u32)
+    )
+);
+
+// Scale fonts to a reasonable size when they're too big (though they might look less smooth)
+fn get_centered_rect(rect_width: u32, rect_height: u32, cons_width: u32, cons_height: u32) -> Rect {
+    let wr = rect_width as f32 / cons_width as f32;
+    let hr = rect_height as f32 / cons_height as f32;
+
+    let (w, h) = if wr > 1f32 || hr > 1f32 {
+        if wr > hr {
+            println!("Scaling down! The text will look worse!");
+            let h = (rect_height as f32 / wr) as i32;
+            (cons_width as i32, h)
+        } else {
+            println!("Scaling down! The text will look worse!");
+            let w = (rect_width as f32 / hr) as i32;
+            (w, cons_height as i32)
+        }
+    } else {
+        (rect_width as i32, rect_height as i32)
+    };
+
+    let cx = (SCREEN_WIDTH as i32 - w) / 2;
+    let cy = 0; // (SCREEN_HEIGHT as i32 - h) / 2;
+    rect!(cx, cy, w, h)
+}
+
+// TODO use a bmp texture and a better text handling system
+fn render_text(target: &mut sdl2::render::Canvas<sdl2::video::Window>, text: &str, font: &sdl2::ttf::Font) {
+    let surface = font.render(text)
+        .blended(Color::RGBA(255, 0, 0, 255)).unwrap();
+    let texture_creator = target.texture_creator();
+    let texture = texture_creator.create_texture_from_surface(&surface).unwrap();
+
+    let TextureQuery { width, height, .. } = texture.query();
+    let padding = 64;
+    let text_box = get_centered_rect(width/2, height/2, SCREEN_WIDTH - padding, SCREEN_HEIGHT - padding);
+    target.copy(&texture, None, Some(text_box)).unwrap();
+}
+
+fn load_font<'l>(ttf_context: &'l sdl2::ttf::Sdl2TtfContext, filename: &str) -> sdl2::ttf::Font<'l, 'static> {
+    let font_path: &Path = Path::new(filename);
+    ttf_context.load_font(font_path, 128).unwrap()
+}
 
 fn main() {
     let sdl_context = sdl2::init()
@@ -22,7 +76,7 @@ fn main() {
     let video_subsystem = sdl_context.video()
         .unwrap();
 
-    let window = video_subsystem.window("rust-sdl2 demo: Video", 800, 600)
+    let window = video_subsystem.window("rust-sdl2 demo: Video", SCREEN_WIDTH, SCREEN_HEIGHT)
         .position_centered()
         .opengl()
         .build()
@@ -42,11 +96,16 @@ fn main() {
         println!("{:?}", spec);
         Synthesizer::new(spec.freq)
     }).unwrap();
+
     device.resume();
 
     let mut canvas = window.into_canvas()
         .build()
         .unwrap();
+
+    let ttf_context = sdl2::ttf::init().unwrap();
+    // TODO look for the ressource manager example on sdl2-rust github
+    let font = load_font(&ttf_context, "fonts/main_font.otf");
 
     let mut event_pump = sdl_context.event_pump()
         .unwrap();
@@ -75,7 +134,7 @@ fn main() {
     let mut y = 0.0;
     let mut vx = 10.0;
     let mut vy = 10.0;
-   
+
     let main_loop = || {
         for event in event_pump.poll_iter() {
             match event {
@@ -112,7 +171,7 @@ fn main() {
                 Event::KeyDown { keycode: Some(Keycode::KpMinus), ..} => {
                     let mut lock = device.lock();
                     (*lock).set_volume(-0.1);
-                    
+
                 },
                 Event::KeyDown { keycode: Some(Keycode::KpPlus), ..} => {
                     let mut lock = device.lock();
@@ -167,10 +226,13 @@ fn main() {
         const EPS : f32 = 1.0/30.0;
         x = x + vx * EPS;
         y = y + vy * EPS;
-        if x > 0.0 { vx = -2.0;} 
+        if x > 0.0 { vx = -2.0;}
         if x < -10.0 { vx = 2.0;}
         if y > 32.0 { vy = -5.0 }
         if y < 5.0 { vy = 5.0}
+
+        // !
+        render_text(&mut canvas, "foobar", &font);
 
         canvas.present();
 
