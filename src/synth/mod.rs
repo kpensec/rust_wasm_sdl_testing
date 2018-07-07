@@ -11,12 +11,111 @@ use synth::key::Key;
 use std::vec::Vec;
 use sdl2::audio::AudioCallback;
 
+// TODO should be dropped after next TODO implementation!
+enum SequencerState {
+    Inactive,
+    Playing,
+    Recording
+}
+
+// TODO split Sequencer into a Recorder struct and a Player struct for easier multi channel
+//      and to allow play & record behavior
+pub struct Sequencer {
+    notes: Vec<(usize, f32)>,
+    state: SequencerState,
+    time: f32,
+    current_note: usize,
+}
+
+impl Sequencer {
+    pub fn new() -> Self {
+        Self{
+            notes: Vec::<(usize,f32)>::new(),
+            state: SequencerState::Inactive,
+            time: 0.0,
+            current_note: 0,
+        }
+    }
+
+    pub fn start_record(&mut self) {
+        match self.state {
+            SequencerState::Inactive => {
+                self.time = 0.0;
+                self.notes.clear();
+                self.state = SequencerState::Recording;
+            },
+            _ => {}
+        }
+    }
+
+    pub fn stop_record(&mut self) {
+        match self.state {
+            SequencerState::Recording => {
+                self.state = SequencerState::Inactive;
+            },
+            _ => {}
+        }
+    }
+
+    pub fn start_playing(&mut self) {
+        match self.state {
+            SequencerState::Inactive => {
+                self.state = SequencerState::Playing;
+                self.current_note = 0;
+                self.time = 0.0;
+            },
+            _ => {}
+        }
+    }
+
+    pub fn update(&mut self, eps: f32) {
+        if self.is_recording() {
+            self.time += eps;
+        }
+    }
+
+    pub fn get_sample(&mut self, _v: f32, _eps: f32) -> f32 {
+        const RT : f32 = 0.5;
+        let mut sample = 0.0;
+        let mut next_note_idx = self.current_note;
+        for idx in self.current_note..self.notes.len() {
+            let time = self.notes[idx].1;
+            if self.time > time + RT {
+                next_note_idx = self.current_note + 1;
+            }
+
+        }
+        self.current_note =  next_note_idx;
+        sample
+    }
+
+    pub fn is_recording(&self) -> bool {
+        match self.state {
+            SequencerState::Recording => true,
+            _ => false
+        }
+    }
+
+    pub fn record(&mut self, key_idx: usize) {
+        self.notes.push((key_idx, self.time));
+    }
+
+    pub fn is_playing(&self) -> bool {
+        match self.state {
+            SequencerState::Playing => true,
+            _ => false
+        }
+    }
+}
+
 pub struct Synthesizer {
     volume: f32,
-    buffer_size: usize,
     keys: [Key; 13],
     step: f32,
     active: bool,
+    sequencer: Sequencer,
+    instrument_idx: usize,
+    instrument_names: Vec<String>,
 }
 
 impl Synthesizer {
@@ -24,13 +123,20 @@ impl Synthesizer {
     pub fn new(playback_freq: i32) -> Self{
         Synthesizer {
             volume: 1.0,
-            buffer_size: 2048,
             keys: [ Key::new(0), Key::new(1), Key::new(2), Key::new(3), Key::new(4), Key::new(5), Key::new(6),
                 Key::new(7), Key::new(8), Key::new(9), Key::new(10), Key::new(11), Key::new(12), ],
             step: 1.0 / playback_freq as f32,
-            active: true
+            active: true,
+            sequencer: Sequencer::new(),
+            instrument_idx: 0,
+            instrument_names: vec!["harmonica".to_string(), "piano".to_string()]
         }
     }
+
+    pub fn record(&mut self) -> () {
+        self.sequencer.start_record();
+    }
+
     pub fn is_active(&self) -> bool {
         self.active
     }
@@ -38,18 +144,33 @@ impl Synthesizer {
     pub fn get_volume(&self) -> f32 {
         self.volume
     }
+
     pub fn set_volume(&mut self, q: f32) {
         self.volume = clamp(self.volume + q, 0.0, 1.0);
     }
 
+    pub fn get_instrument(&self) -> String {
+        self.instrument_names[self.instrument_idx].to_string()
+    }
+
+    pub fn switch_instrument(&mut self, step: i32) {
+        self.instrument_idx = ((self.instrument_idx as i32 + step) as usize) % self.instrument_names.len();
+    }
+
     pub fn start_note(&mut self, key_idx: usize) {
         // TODO vec upsert here!
-        self.keys[key_idx].press()
+        self.keys[key_idx].press();
+        if self.sequencer.is_recording() {
+            self.sequencer.record(key_idx);
+        }
     }
 
     pub fn release_note(&mut self, key_idx: usize) {
         // TODO vec update here!
-        self.keys[key_idx].release()
+        self.keys[key_idx].release();
+        //if self.sequencer.is_recording() {
+        //    self.sequencer.record(key_idx);
+        //}
     }
 
     fn blend_sample(lhs: f32, rhs: f32) -> f32 {
@@ -62,19 +183,8 @@ impl Synthesizer {
         for key in self.keys.iter_mut() {
             result = Self::blend_sample(result, key.update(self.volume, self.step));
         }
-        result
-    }
-
-    pub fn update(&mut self, _eps: f32) -> Vec<f32> {
-        let mut result = Vec::<f32>::with_capacity(self.buffer_size);
-        if ! self.active {
-            ()
-        }
-
-        for _ in 0usize..self.buffer_size {
-            let sample = self.get_sample();
-            result.push(sample);
-            result.push(sample);
+        if self.sequencer.is_playing() {
+            result = Self::blend_sample(result, self.sequencer.get_sample(self.volume, self.step))
         }
         result
     }

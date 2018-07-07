@@ -1,16 +1,12 @@
-
 use sdl2::pixels::Color;
 use sdl2::rect::{Rect};
 use sdl2::render::{Canvas, RenderTarget};
 
-const CELL_SIZE : i32 = 16;
 
-pub fn display_cell<T: RenderTarget>(r: &mut Canvas<T>, row: i32, col: i32) -> Result<(), String> {
-    let x = CELL_SIZE * row;
-    let y = CELL_SIZE * col;
-    let cell_color = Color::RGB(200,222,128);
-
-    r.set_draw_color(cell_color);
-    r.fill_rect(Rect::new(x, y, CELL_SIZE as u32, CELL_SIZE as u32))?;
+pub fn display_cell<T: RenderTarget>(r: &mut Canvas<T>, row: i32, col: i32, cell_size: u32, color : Color) -> Result<(), String> {
+    let x = cell_size as i32 * row;
+    let y = cell_size as i32 * col;
+    r.set_draw_color(color);
+    r.fill_rect(Rect::new(x, y, cell_size, cell_size))?;
     Ok(())
 }

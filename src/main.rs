@@ -1,10 +1,13 @@
 extern crate sdl2;
+extern crate rand;
 
 mod utils;
 mod synth;
 mod platform;
 mod renderer;
+mod game_of_life;
 
+use game_of_life::{Universe, Renderer};
 use sdl2::pixels::Color;
 use sdl2::event::{Event};
 use sdl2::keyboard::Keycode;
@@ -17,8 +20,8 @@ use std::path::Path;
 
 use synth::Synthesizer;
 
-static SCREEN_WIDTH : u32 = 800;
-static SCREEN_HEIGHT : u32 = 600;
+static SCREEN_WIDTH : u32 = 1366;
+static SCREEN_HEIGHT : u32 = 768;
 
 // handle the annoying Rect i32
 macro_rules! rect(
@@ -27,54 +30,75 @@ macro_rules! rect(
     )
 );
 
-// Scale fonts to a reasonable size when they're too big (though they might look less smooth)
-fn get_centered_rect(rect_width: u32, rect_height: u32, cons_width: u32, cons_height: u32) -> Rect {
-    let wr = rect_width as f32 / cons_width as f32;
-    let hr = rect_height as f32 / cons_height as f32;
 
-    let (w, h) = if wr > 1f32 || hr > 1f32 {
-        if wr > hr {
-            println!("Scaling down! The text will look worse!");
-            let h = (rect_height as f32 / wr) as i32;
-            (cons_width as i32, h)
+trait TextRendering {
+    fn render_text(&mut self, text: &str, font: &sdl2::ttf::Font, line_no: u32, color: Color) -> ();
+
+    // Scale fonts to a reasonable size when they're too big (though they might look less smooth)
+    fn get_centered_rect(rect_width: u32, rect_height: u32, cons_width: u32, cons_height: u32) -> Rect {
+        let wr = rect_width as f32 / cons_width as f32;
+        let hr = rect_height as f32 / cons_height as f32;
+
+        let (w, h) = if wr > 1f32 || hr > 1f32 {
+            if wr > hr {
+                println!("Scaling down! The text will look worse!");
+                let h = (rect_height as f32 / wr) as i32;
+                (cons_width as i32, h)
+            } else {
+                println!("Scaling down! The text will look worse!");
+                let w = (rect_width as f32 / hr) as i32;
+                (w, cons_height as i32)
+            }
         } else {
-            println!("Scaling down! The text will look worse!");
-            let w = (rect_width as f32 / hr) as i32;
-            (w, cons_height as i32)
-        }
-    } else {
-        (rect_width as i32, rect_height as i32)
-    };
+            (rect_width as i32, rect_height as i32)
+        };
 
-    let cx = (SCREEN_WIDTH as i32 - w) / 2;
-    let cy = 0; // (SCREEN_HEIGHT as i32 - h) / 2;
-    rect!(cx, cy, w, h)
+        let cx = 0;
+        let cy = 0; // (SCREEN_HEIGHT as i32 - h) / 2;
+        rect!(cx, cy, w, h)
+    }
 }
 
-// TODO use a bmp texture and a better text handling system
-fn render_text(target: &mut sdl2::render::Canvas<sdl2::video::Window>, text: &str, font: &sdl2::ttf::Font) {
-    let surface = font.render(text)
-        .blended(Color::RGBA(255, 0, 0, 255)).unwrap();
-    let texture_creator = target.texture_creator();
-    let texture = texture_creator.create_texture_from_surface(&surface).unwrap();
-
-    let TextureQuery { width, height, .. } = texture.query();
-    let padding = 64;
-    let text_box = get_centered_rect(width/2, height/2, SCREEN_WIDTH - padding, SCREEN_HEIGHT - padding);
-    target.copy(&texture, None, Some(text_box)).unwrap();
+trait TextRenderingMap {
+    fn hello() -> &'static str;
 }
 
-fn load_font<'l>(ttf_context: &'l sdl2::ttf::Sdl2TtfContext, filename: &str) -> sdl2::ttf::Font<'l, 'static> {
+use sdl2::render::{Canvas, RenderTarget};
+use sdl2::video::Window;
+
+impl<R : RenderTarget> TextRenderingMap for Canvas<R> {
+    fn hello() -> &'static str { "hello" }
+}
+
+impl TextRendering for Canvas<Window> {
+    fn render_text(&mut self, text: &str, font: &sdl2::ttf::Font, line_no: u32, color: Color) -> () {
+        let surface = font.render(text)
+            .blended(color).unwrap();
+        let texture_creator = self.texture_creator();
+        let texture = texture_creator.create_texture_from_surface(&surface).unwrap();
+
+        let TextureQuery { width, height, .. } = texture.query();
+        let padding = 16;
+        let mut text_box = Self::get_centered_rect(width/2, height/2, SCREEN_WIDTH - padding, SCREEN_HEIGHT - padding);
+        text_box.y += ((height/2+padding) * line_no) as i32;
+        text_box.x += padding as i32;
+        self.copy(&texture, None, Some(text_box)).unwrap();
+    }
+}
+
+fn load_font<'l>(ttf_context: &'l sdl2::ttf::Sdl2TtfContext, filename: &str, font_size: u16) -> sdl2::ttf::Font<'l, 'static> {
     let font_path: &Path = Path::new(filename);
-    ttf_context.load_font(font_path, 128).unwrap()
+    ttf_context.load_font(font_path, font_size).unwrap()
 }
 
 fn main() {
+
     let sdl_context = sdl2::init()
         .unwrap();
 
     let video_subsystem = sdl_context.video()
         .unwrap();
+    video_subsystem.gl_set_swap_interval(sdl2::video::SwapInterval::Immediate);
 
     let window = video_subsystem.window("rust-sdl2 demo: Video", SCREEN_WIDTH, SCREEN_HEIGHT)
         .position_centered()
@@ -84,6 +108,11 @@ fn main() {
 
     let audio_subsystem = sdl_context.audio()
         .unwrap();
+    let font_map = sdl2::surface::Surface::load_bmp(Path::new("assets/font.bmp"));
+    let mut timer_subsystem = sdl_context.timer()
+        .unwrap();
+
+    let mut last_frame_time = 0 as u32;
 
     let desired_spec = AudioSpecDesired {
         //freq: Some(44_100),
@@ -105,14 +134,13 @@ fn main() {
 
     let ttf_context = sdl2::ttf::init().unwrap();
     // TODO look for the ressource manager example on sdl2-rust github
-    let font = load_font(&ttf_context, "fonts/main_font.otf");
+    let font = load_font(&ttf_context, "fonts/main_font.ttf", 64);
 
     let mut event_pump = sdl_context.event_pump()
         .unwrap();
 
     let sprite_color = Color::RGB(255, 255, 255);
     let bg_color = Color::RGB(0, 0, 128);
-    let mut rect = Rect::new(10, 10, 10, 10);
     let mut prev_keys = HashSet::new();
     let mut keyboard_notes = HashMap::new();
 
@@ -130,12 +158,18 @@ fn main() {
     keyboard_notes.insert(Keycode::V, 11 as usize);
     keyboard_notes.insert(Keycode::N, 12 as usize);
 
-    let mut x = 0.0;
-    let mut y = 0.0;
-    let mut vx = 10.0;
-    let mut vy = 10.0;
-
+    let mut render_time_accumulator = 0.0;
+    let render_time_update = 10.0/1000.0;
+    let mut block_size = 16;
+    let mut frame_count = 10;
+    let mut frame_count_time = 0.0;
+    let mut frame_per_sec = 60.0;
+    let mut universe = Universe::new(0.5);
     let main_loop = || {
+        let new_frame_time = timer_subsystem.ticks();
+        let eps = (new_frame_time - last_frame_time) as f32 / 1000.0;
+        last_frame_time = new_frame_time;
+        
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
@@ -143,16 +177,20 @@ fn main() {
                     println!("Application exited!");
                 },
                 Event::KeyDown { keycode: Some(Keycode::Left), ..} => {
-                    rect.x -= 10;
+                    let mut lock = device.lock();
+                    (*lock).switch_instrument(-1);
                 },
                 Event::KeyDown { keycode: Some(Keycode::Right), ..} => {
-                    rect.x += 10;
+                    let mut lock = device.lock();
+                    (*lock).switch_instrument(1);
                 },
                 Event::KeyDown { keycode: Some(Keycode::Up), ..} => {
-                    rect.y -= 10;
+                    universe.set_time_update(0.05);
+                    // block_size = utils::clamp(block_size >> 1, 1, 64);
                 },
                 Event::KeyDown { keycode: Some(Keycode::Down), ..} => {
-                    rect.y += 10;
+                    // block_size = utils::clamp(block_size << 1, 1, 64);
+                    universe.set_time_update(-0.05);
                 },
                 Event::KeyDown { keycode: Some(Keycode::F1), ..} => {
                     let mut lock = device.lock();
@@ -211,30 +249,48 @@ fn main() {
         }
 
         prev_keys = keys;
+        universe.tick(eps);
 
+        // rendering:
         canvas.set_draw_color(bg_color);
         canvas.clear();
-
         canvas.set_draw_color(sprite_color);
-        let _ = canvas.fill_rect(rect);
 
-        for i in 0..2 {
-            let xx = 8 + (x as i32 + i);
-            let yy = 8 + (y as i32 - i);
-            let _ = renderer::display_cell(&mut canvas, xx, yy);
+        {
+            let lock = device.lock();
+            let _volume = (*lock).get_volume();
+            let _instrument = (*lock).get_instrument();
+           
+            frame_count_time += eps;
+            frame_count -= 1;
+            if frame_count == 0 {
+                if frame_count_time == 0.0 {
+                    println!("divided by zero!");
+                }
+                frame_count = 60;
+                frame_per_sec =  frame_count as f32 / frame_count_time ;
+                frame_count_time = 0.0;
+            //    println!("fps: {:.*}", 2, frame_per_sec);
+            }
+            // canvas.render_text(&format!("fps: {:.*}", 2, frame_per_sec), &font, 0, Color::RGBA(((1.0+t)*128.0) as u8,((1.0-t) * 128.0) as u8,0,255));
+            // canvas.render_text(&format!("volume: {}, red value: {}", volume, t), &font, 0, Color::RGBA(((1.0+t)*128.0) as u8,((1.0-t) * 128.0) as u8,0,255));
+            // canvas.render_text(&format!("current intstrument: {}", instrument), &font, 1, Color::RGBA(255,255,0,255));
+            // canvas.render_text(&format!("universe update time: {}", universe.get_time_update()), &font, 2, Color::RGBA(255,255,0,255));
         }
-        const EPS : f32 = 1.0/30.0;
-        x = x + vx * EPS;
-        y = y + vy * EPS;
-        if x > 0.0 { vx = -2.0;}
-        if x < -10.0 { vx = 2.0;}
-        if y > 32.0 { vy = -5.0 }
-        if y < 5.0 { vy = 5.0}
+        //for y in 8..SCREEN_HEIGHT/block_size - 8 {
+        //    for x in 8..SCREEN_WIDTH/block_size - 8 {
+        //        let color = Color::RGB(
+        //            (rand::random::<f32>() * 128.0 + 64.0) as u8,
+        //            (rand::random::<f32>() * 128.0 + 64.0) as u8,
+        //            (rand::random::<f32>() * 128.0 + 64.0) as u8,
+        //            );
 
-        // !
-        render_text(&mut canvas, "foobar", &font);
-
+        //        renderer::display_cell(&mut canvas, x as i32, y as i32, block_size, color).unwrap();
+        //    }
+        //}
+        universe.render(&mut canvas);
         canvas.present();
+
 
         platform::sleep();
 
