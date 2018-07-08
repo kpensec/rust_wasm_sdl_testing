@@ -76,7 +76,7 @@ impl Sequencer {
 
     pub fn get_sample(&mut self, _v: f32, _eps: f32) -> f32 {
         const RT : f32 = 0.5;
-        let mut sample = 0.0;
+        let sample = 0.0;
         let mut next_note_idx = self.current_note;
         for idx in self.current_note..self.notes.len() {
             let time = self.notes[idx].1;

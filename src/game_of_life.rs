@@ -1,3 +1,7 @@
+extern crate rand;
+use sdl2::pixels::Color;
+use render::RenderContext;
+
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Cell {
@@ -105,16 +109,11 @@ impl Universe {
     }
 }
 
+use sdl2::render::RenderTarget;
 
-use renderer::display_cell;
-use sdl2::render::{RenderTarget, Canvas};
-use sdl2::pixels::Color;
-
-pub trait Renderer {
-    fn render<T: RenderTarget>(&self, canvas: &mut Canvas<T>);
+pub trait Renderer<T: RenderTarget> {
+    fn render(&self, ctx: &mut RenderContext<T>);
 }
-
-extern crate rand;
 
 pub fn get_random_color() -> Color  {
     Color::RGB(
@@ -123,14 +122,14 @@ pub fn get_random_color() -> Color  {
         rand::random::<u8>()
     )
 }
-impl Renderer for Universe {
-    fn render<T: RenderTarget>(&self, canvas: &mut Canvas<T>) {
+impl<T: RenderTarget> Renderer<T> for Universe {
+    fn render(&self, r: &mut RenderContext<T>) {
         for i in 0..self.width {
             for j in 0..self.height {
                 match self.cells[self.get_index(i,j)] {
-                    Cell::Alive => display_cell(canvas, i as i32, j as i32, 8, get_random_color()),
+                    Cell::Alive => r.display_cell(i as i32, j as i32, 8, get_random_color()),
                     _ => Ok(())
-                };
+                }.unwrap();
             }
         }
     }

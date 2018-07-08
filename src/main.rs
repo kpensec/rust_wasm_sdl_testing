@@ -4,24 +4,29 @@ extern crate rand;
 mod utils;
 mod synth;
 mod platform;
-mod renderer;
+mod render;
 mod game_of_life;
 
-use game_of_life::{Universe, Renderer};
+use std::collections::{HashSet, HashMap};
+// use std::path::Path;
+
 use sdl2::pixels::Color;
 use sdl2::event::{Event};
 use sdl2::keyboard::Keycode;
 use sdl2::rect::{Rect};
 use sdl2::audio::{AudioSpecDesired};
-use sdl2::render::{TextureQuery};
+// use sdl2::render::{TextureQuery};
+// use sdl2::image::{LoadTexture};
+use sdl2::render::{Canvas, RenderTarget};
+// use sdl2::video::Window;
 
-use std::collections::{HashSet, HashMap};
-use std::path::Path;
-
+use render::RenderContext;
 use synth::Synthesizer;
+use game_of_life::{Universe, Renderer};
 
-static SCREEN_WIDTH : u32 = 1366;
-static SCREEN_HEIGHT : u32 = 768;
+const NAME: &str = "rust-sdl2 demo: Video";
+const SCREEN_WIDTH : u32 = 1366;
+const SCREEN_HEIGHT : u32 = 768;
 
 // handle the annoying Rect i32
 macro_rules! rect(
@@ -29,7 +34,6 @@ macro_rules! rect(
         Rect::new($x as i32, $y as i32, $w as u32, $h as u32)
     )
 );
-
 
 trait TextRendering {
     fn render_text(&mut self, text: &str, font: &sdl2::ttf::Font, line_no: u32, color: Color) -> ();
@@ -41,11 +45,9 @@ trait TextRendering {
 
         let (w, h) = if wr > 1f32 || hr > 1f32 {
             if wr > hr {
-                println!("Scaling down! The text will look worse!");
                 let h = (rect_height as f32 / wr) as i32;
                 (cons_width as i32, h)
             } else {
-                println!("Scaling down! The text will look worse!");
                 let w = (rect_width as f32 / hr) as i32;
                 (w, cons_height as i32)
             }
@@ -63,33 +65,30 @@ trait TextRenderingMap {
     fn hello() -> &'static str;
 }
 
-use sdl2::render::{Canvas, RenderTarget};
-use sdl2::video::Window;
-
 impl<R : RenderTarget> TextRenderingMap for Canvas<R> {
     fn hello() -> &'static str { "hello" }
 }
 
-impl TextRendering for Canvas<Window> {
-    fn render_text(&mut self, text: &str, font: &sdl2::ttf::Font, line_no: u32, color: Color) -> () {
-        let surface = font.render(text)
-            .blended(color).unwrap();
-        let texture_creator = self.texture_creator();
-        let texture = texture_creator.create_texture_from_surface(&surface).unwrap();
+// impl TextRendering for Canvas<Window> {
+//     fn render_text(&mut self, text: &str, font: &sdl2::ttf::Font, line_no: u32, color: Color) -> () {
+//         let surface = font.render(text)
+//             .blended(color).unwrap();
+//         let texture_creator = self.texture_creator();
+//         let texture = texture_creator.create_texture_from_surface(&surface).unwrap();
+//
+//         let TextureQuery { width, height, .. } = texture.query();
+//         let padding = 16;
+//         let mut text_box = Self::get_centered_rect(width/2, height/2, - padding, SCREEN_HEIGHT - padding);
+//         text_box.y += ((height/2+padding) * line_no) as i32;
+//         text_box.x += padding as i32;
+//         self.copy(&texture, None, Some(text_box)).unwrap();
+//     }
+// }
 
-        let TextureQuery { width, height, .. } = texture.query();
-        let padding = 16;
-        let mut text_box = Self::get_centered_rect(width/2, height/2, SCREEN_WIDTH - padding, SCREEN_HEIGHT - padding);
-        text_box.y += ((height/2+padding) * line_no) as i32;
-        text_box.x += padding as i32;
-        self.copy(&texture, None, Some(text_box)).unwrap();
-    }
-}
-
-fn load_font<'l>(ttf_context: &'l sdl2::ttf::Sdl2TtfContext, filename: &str, font_size: u16) -> sdl2::ttf::Font<'l, 'static> {
-    let font_path: &Path = Path::new(filename);
-    ttf_context.load_font(font_path, font_size).unwrap()
-}
+// fn load_font<'l>(ttf_context: &'l sdl2::ttf::Sdl2TtfContext, filename: &str, font_size: u16) -> sdl2::ttf::Font<'l, 'static> {
+//     let font_path: &Path = Path::new(filename);
+//     ttf_context.load_font(font_path, font_size).unwrap()
+// }
 
 fn main() {
 
@@ -99,16 +98,18 @@ fn main() {
     let video_subsystem = sdl_context.video()
         .unwrap();
     video_subsystem.gl_set_swap_interval(sdl2::video::SwapInterval::Immediate);
-
-    let window = video_subsystem.window("rust-sdl2 demo: Video", SCREEN_WIDTH, SCREEN_HEIGHT)
-        .position_centered()
-        .opengl()
-        .build()
-        .unwrap();
+    let window = video_subsystem.window(NAME, SCREEN_WIDTH, SCREEN_HEIGHT)
+            .position_centered()
+            .opengl()
+            .build()
+            .unwrap();
+    let mut render_context = RenderContext::from_window(window);
 
     let audio_subsystem = sdl_context.audio()
         .unwrap();
-    let font_map = sdl2::surface::Surface::load_bmp(Path::new("assets/font.bmp"));
+    let _image_context = sdl2::image::init(sdl2::image::INIT_PNG)
+        .unwrap();
+
     let mut timer_subsystem = sdl_context.timer()
         .unwrap();
 
@@ -128,19 +129,16 @@ fn main() {
 
     device.resume();
 
-    let mut canvas = window.into_canvas()
-        .build()
-        .unwrap();
 
-    let ttf_context = sdl2::ttf::init().unwrap();
-    // TODO look for the ressource manager example on sdl2-rust github
-    let font = load_font(&ttf_context, "fonts/main_font.ttf", 64);
+    //let _font_map = render_context.load_texture(Path::new("assets/font.png"))
+    //    .unwrap();
+    // let ttf_context = sdl2::ttf::init().unwrap();
 
     let mut event_pump = sdl_context.event_pump()
         .unwrap();
 
-    let sprite_color = Color::RGB(255, 255, 255);
-    let bg_color = Color::RGB(0, 0, 128);
+    // let sprite_color = Color::RGB(255, 255, 255);
+    // let bg_color = Color::RGB(0, 0, 128);
     let mut prev_keys = HashSet::new();
     let mut keyboard_notes = HashMap::new();
 
@@ -158,9 +156,9 @@ fn main() {
     keyboard_notes.insert(Keycode::V, 11 as usize);
     keyboard_notes.insert(Keycode::N, 12 as usize);
 
-    let mut render_time_accumulator = 0.0;
-    let render_time_update = 10.0/1000.0;
-    let mut block_size = 16;
+    // let mut render_time_accumulator = 0.0;
+    // let render_time_update = 10.0/1000.0;
+    // let mut block_size = 16;
     let mut frame_count = 10;
     let mut frame_count_time = 0.0;
     let mut frame_per_sec = 60.0;
@@ -169,7 +167,7 @@ fn main() {
         let new_frame_time = timer_subsystem.ticks();
         let eps = (new_frame_time - last_frame_time) as f32 / 1000.0;
         last_frame_time = new_frame_time;
-        
+
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
@@ -181,8 +179,8 @@ fn main() {
                     (*lock).switch_instrument(-1);
                 },
                 Event::KeyDown { keycode: Some(Keycode::Right), ..} => {
-                    let mut lock = device.lock();
-                    (*lock).switch_instrument(1);
+                    /*let mut lock =*/ device.lock().switch_instrument(1);
+                    // (*lock).switch_instrument(1);
                 },
                 Event::KeyDown { keycode: Some(Keycode::Up), ..} => {
                     universe.set_time_update(0.05);
@@ -252,15 +250,14 @@ fn main() {
         universe.tick(eps);
 
         // rendering:
-        canvas.set_draw_color(bg_color);
-        canvas.clear();
-        canvas.set_draw_color(sprite_color);
+        render_context.clear();
+        //canvas.set_draw_color(sprite_color);
 
         {
             let lock = device.lock();
             let _volume = (*lock).get_volume();
             let _instrument = (*lock).get_instrument();
-           
+
             frame_count_time += eps;
             frame_count -= 1;
             if frame_count == 0 {
@@ -288,8 +285,15 @@ fn main() {
         //        renderer::display_cell(&mut canvas, x as i32, y as i32, block_size, color).unwrap();
         //    }
         //}
-        universe.render(&mut canvas);
-        canvas.present();
+        universe.render(&mut render_context);
+        //{
+        //    let txQuery = _font_map.query();
+        //    let src_rect = rect!(0, 0, txQuery.width, txQuery.height);
+        //    let dst_rect = rect!(0, 0, txQuery.width * 2, txQuery.height * 2);
+        //    println!("{:?}",txQuery);
+        //    canvas.copy(&_font_map, src_rect, dst_rect);
+        //}
+        render_context.present();
 
 
         platform::sleep();
