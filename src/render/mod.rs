@@ -5,6 +5,9 @@ use sdl2::rect::{Rect};
 use sdl2::render::{Canvas, RenderTarget, TextureCreator};
 use sdl2::video::{Window, WindowContext};
 
+mod scene;
+pub type Scene = scene::Scene;
+
 macro_rules! color_rgb(
     ($red: expr, $green: expr, $blue: expr) => (
         Color{

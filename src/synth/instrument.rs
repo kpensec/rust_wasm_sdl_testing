@@ -1,15 +1,16 @@
 use synth::periodical_wave::{*};
 use synth::envelop::Envelop;
 use synth::note::get_note_freq;
+use utils::Unit;
 
 #[derive(Clone, Copy)]
 struct LowFrequencyOscillator {
-    pub amplitude: f32,
-    pub freq: f32,
+    pub amplitude: Unit,
+    pub freq: Unit,
 }
 
 impl LowFrequencyOscillator {
-    pub fn get(self, time: f32) -> f32 {
+    pub fn get(self, time: Unit) -> Unit {
         self.amplitude * sine_wave(time, self.freq)
     }
 }
@@ -33,13 +34,14 @@ impl TestInstrument {
             lfo: LowFrequencyOscillator{
                 amplitude: 0.0000002,
                 freq: 1.50,
-            }
+            },
         }
     }
-    pub fn get_sample(self, time: f32, note: i32) -> f32 {
-        let tone_1 = get_note_freq(note - 24);
-        let tone_2 = get_note_freq(note + 24);
-        let tone_3 = get_note_freq(note + 12);
+
+    pub fn get_sample(&mut self, time: Unit, note: i32) -> Unit {
+        let tone_1 = get_note_freq(note - 1);
+        let tone_2 = get_note_freq(note + 15);
+        let tone_3 = get_note_freq(note);
         square_wave(time + self.lfo.get(time), tone_1) * 0.45
             + saw_wave(time + self.lfo.get(2.0*time), tone_2) * 0.45
             + saw_wave(time + self.lfo.get(0.1*time), tone_3) * 0.3

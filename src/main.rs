@@ -7,6 +7,8 @@ mod platform;
 mod render;
 mod game_of_life;
 
+use utils::{Vec2, Unit};
+use render::{Scene};
 use std::collections::{HashSet, HashMap};
 // use std::path::Path;
 
@@ -15,9 +17,6 @@ use sdl2::event::{Event};
 use sdl2::keyboard::Keycode;
 use sdl2::rect::{Rect};
 use sdl2::audio::{AudioSpecDesired};
-// use sdl2::render::{TextureQuery};
-// use sdl2::image::{LoadTexture};
-use sdl2::render::{Canvas, RenderTarget};
 // use sdl2::video::Window;
 
 use render::RenderContext;
@@ -25,8 +24,10 @@ use synth::Synthesizer;
 use game_of_life::{Universe, Renderer};
 
 const NAME: &str = "rust-sdl2 demo: Video";
-const SCREEN_WIDTH : u32 = 1366;
-const SCREEN_HEIGHT : u32 = 768;
+const SCREEN_SIZE: Vec2 = Vec2{
+    x: 1366 as Unit,
+    y: 768 as Unit
+};
 
 // handle the annoying Rect i32
 macro_rules! rect(
@@ -61,14 +62,6 @@ trait TextRendering {
     }
 }
 
-trait TextRenderingMap {
-    fn hello() -> &'static str;
-}
-
-impl<R : RenderTarget> TextRenderingMap for Canvas<R> {
-    fn hello() -> &'static str { "hello" }
-}
-
 // impl TextRendering for Canvas<Window> {
 //     fn render_text(&mut self, text: &str, font: &sdl2::ttf::Font, line_no: u32, color: Color) -> () {
 //         let surface = font.render(text)
@@ -98,11 +91,12 @@ fn main() {
     let video_subsystem = sdl_context.video()
         .unwrap();
     video_subsystem.gl_set_swap_interval(sdl2::video::SwapInterval::Immediate);
-    let window = video_subsystem.window(NAME, SCREEN_WIDTH, SCREEN_HEIGHT)
+    let window = video_subsystem.window(NAME, SCREEN_SIZE.x as u32, SCREEN_SIZE.y as u32)
             .position_centered()
             .opengl()
             .build()
             .unwrap();
+    let mut scene = Scene::new(SCREEN_SIZE);
     let mut render_context = RenderContext::from_window(window);
 
     let audio_subsystem = sdl_context.audio()
