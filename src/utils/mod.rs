@@ -17,7 +17,7 @@ pub fn deg_to_rad(theta: Unit) -> Unit {
     theta * DEG_TO_RAD_C
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Vec2 {
     pub x: Unit,
     pub y: Unit,

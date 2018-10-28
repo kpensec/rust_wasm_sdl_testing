@@ -1,0 +1,4 @@
+name: "rust-sdl2 demo: Video"
+size:
+  x: 1024
+  y: 768

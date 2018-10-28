@@ -12,8 +12,6 @@ mod platform;
 mod render;
 
 // TODO lookup for some virtual fs crates?
-//
-
 use std::collections::{HashSet, HashMap};
 use std::{mem, str, ptr};
 use std::ffi::CString;
@@ -25,20 +23,25 @@ use sdl2::event::{Event};
 use sdl2::keyboard::Keycode;
 use sdl2::audio::{AudioSpecDesired};
 
+// TODO same
 use gl::types::*;
 
 use utils::{Vec2, Unit, Newable};
-//use render::{/*Scene, Sprite, RenderContext*/};
 use render::gl_utils::make_program;
 use synth::Synthesizer;
 
 // TODO read from config file!
-const NAME: &'static str = "rust-sdl2 demo: Video";
-
-const SCREEN_SIZE: Vec2 = Vec2 {
-    x: 1024 as Unit,
-    y: 768 as Unit
-};
+//const NAME: &'static str =;
+//
+//const SCREEN_SIZE: Vec2 = Vec2 {
+//    x: 1024 as Unit,
+//    y: 768 as Unit
+//};
+#[derive(Debug, Serialize, Deserialize)]
+struct WindowConf {
+  name: String,
+  size: Vec2
+}
 // mod RessourceManager
 fn load_obj(filepath: &str) -> Vec<f32> {
     let mut result : Vec<f32> = Vec::<f32>::new();
@@ -77,9 +80,12 @@ fn window_init(video_subsystem: &mut sdl2::VideoSubsystem) -> sdl2::video::Windo
         gl_attr.set_context_version(3, 0);
     }
 
+    let window_cfg : WindowConf =
+      serde_yaml::from_str(&platform::io::read_file("assets/window.yml")).unwrap();
+    println!("window cfg: {:?}", window_cfg);
 
     video_subsystem.gl_set_swap_interval(sdl2::video::SwapInterval::Immediate);
-    video_subsystem.window(NAME, SCREEN_SIZE.x as u32, SCREEN_SIZE.y as u32)
+    video_subsystem.window(&window_cfg.name, window_cfg.size.x as u32, window_cfg.size.y as u32)
             .position_centered()
             .opengl()
             .build()
