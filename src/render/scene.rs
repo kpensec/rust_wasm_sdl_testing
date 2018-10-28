@@ -1,4 +1,4 @@
-use utils::{Unit, Vec2};
+use utils::{Vec2};
 
 pub struct Scene {
     size: Vec2
@@ -11,3 +11,7 @@ impl Scene {
         }
     }
 }
+
+
+// impl Renderer for Scene {
+// }

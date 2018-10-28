@@ -1,0 +1,21 @@
+-
+  osc_func: 0
+  osc_note_offset: 12
+  osc_amp: 1.2
+  lfo_func: 0
+  lfo_amp: 0.005
+  lfo_freq: 0.5
+-
+  osc_func: 1
+  osc_note_offset: 2
+  osc_amp: 1.0
+  lfo_func: 0
+  lfo_amp: 0.005
+  lfo_freq: 0.5
+-
+  osc_func: 2
+  osc_note_offset: 20
+  osc_amp: 0.0
+  lfo_func: 0
+  lfo_amp: 0.005
+  lfo_freq: 0.5

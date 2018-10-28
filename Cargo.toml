@@ -5,6 +5,13 @@ authors = ["Oropiko <nope@nopemail.nope>"]
 
 [dependencies]
 rand = "*"
+gl = "*"
+lodepng = "*"
+immi = "*"
+serde = "*"
+serde_derive = "*"
+serde_yaml = "*"
+libloading = "*"
 
 [dependencies.sdl2]
 version = "0.31"

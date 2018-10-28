@@ -1,168 +1,302 @@
 extern crate sdl2;
 extern crate rand;
+extern crate gl;
+#[macro_use] extern crate serde_derive;
+extern crate serde_yaml;
+extern crate libloading;
 
+mod ui;
 mod utils;
 mod synth;
 mod platform;
 mod render;
-mod game_of_life;
 
-use utils::{Vec2, Unit};
-use render::{Scene};
+// TODO lookup for some virtual fs crates?
+//
+
 use std::collections::{HashSet, HashMap};
-// use std::path::Path;
+use std::{mem, str, ptr};
+use std::ffi::CString;
+use std::os::raw::c_void;
 
-use sdl2::pixels::Color;
+
+// TODO should be on the platform layer code
 use sdl2::event::{Event};
 use sdl2::keyboard::Keycode;
-use sdl2::rect::{Rect};
 use sdl2::audio::{AudioSpecDesired};
-// use sdl2::video::Window;
 
-use render::RenderContext;
+use gl::types::*;
+
+use utils::{Vec2, Unit, Newable};
+//use render::{/*Scene, Sprite, RenderContext*/};
+use render::gl_utils::make_program;
 use synth::Synthesizer;
-use game_of_life::{Universe, Renderer};
 
-const NAME: &str = "rust-sdl2 demo: Video";
-const SCREEN_SIZE: Vec2 = Vec2{
-    x: 1366 as Unit,
+// TODO read from config file!
+const NAME: &'static str = "rust-sdl2 demo: Video";
+
+const SCREEN_SIZE: Vec2 = Vec2 {
+    x: 1024 as Unit,
     y: 768 as Unit
 };
+// mod RessourceManager
+fn load_obj(filepath: &str) -> Vec<f32> {
+    let mut result : Vec<f32> = Vec::<f32>::new();
 
-// handle the annoying Rect i32
-macro_rules! rect(
-    ($x:expr, $y:expr, $w:expr, $h:expr) => (
-        Rect::new($x as i32, $y as i32, $w as u32, $h as u32)
-    )
-);
+    platform::io::load_asset(filepath, |line: &String| {
+        match line.get(0..1) {
+            Some("#") => return (),
+            _ => {}
 
-trait TextRendering {
-    fn render_text(&mut self, text: &str, font: &sdl2::ttf::Font, line_no: u32, color: Color) -> ();
+        }
 
-    // Scale fonts to a reasonable size when they're too big (though they might look less smooth)
-    fn get_centered_rect(rect_width: u32, rect_height: u32, cons_width: u32, cons_height: u32) -> Rect {
-        let wr = rect_width as f32 / cons_width as f32;
-        let hr = rect_height as f32 / cons_height as f32;
-
-        let (w, h) = if wr > 1f32 || hr > 1f32 {
-            if wr > hr {
-                let h = (rect_height as f32 / wr) as i32;
-                (cons_width as i32, h)
-            } else {
-                let w = (rect_width as f32 / hr) as i32;
-                (w, cons_height as i32)
+        for s in line.trim().split(" ") {
+            if s != "" {
+                result.push(s.parse::<f32>().unwrap());
             }
-        } else {
-            (rect_width as i32, rect_height as i32)
-        };
+        }
+    });
 
-        let cx = 0;
-        let cy = 0; // (SCREEN_HEIGHT as i32 - h) / 2;
-        rect!(cx, cy, w, h)
-    }
+    result
 }
 
-// impl TextRendering for Canvas<Window> {
-//     fn render_text(&mut self, text: &str, font: &sdl2::ttf::Font, line_no: u32, color: Color) -> () {
-//         let surface = font.render(text)
-//             .blended(color).unwrap();
-//         let texture_creator = self.texture_creator();
-//         let texture = texture_creator.create_texture_from_surface(&surface).unwrap();
-//
-//         let TextureQuery { width, height, .. } = texture.query();
-//         let padding = 16;
-//         let mut text_box = Self::get_centered_rect(width/2, height/2, - padding, SCREEN_HEIGHT - padding);
-//         text_box.y += ((height/2+padding) * line_no) as i32;
-//         text_box.x += padding as i32;
-//         self.copy(&texture, None, Some(text_box)).unwrap();
-//     }
-// }
+struct SDLSys {
+   context: sdl2::Sdl,
+   video: sdl2::VideoSubsystem,
+   window: sdl2::video::Window,
+   gl_context: sdl2::video::GLContext,
+   audio: sdl2::AudioSubsystem,
+   event: sdl2::EventPump,
+   timer: sdl2::TimerSubsystem,
+}
 
-// fn load_font<'l>(ttf_context: &'l sdl2::ttf::Sdl2TtfContext, filename: &str, font_size: u16) -> sdl2::ttf::Font<'l, 'static> {
-//     let font_path: &Path = Path::new(filename);
-//     ttf_context.load_font(font_path, font_size).unwrap()
-// }
+fn window_init(video_subsystem: &mut sdl2::VideoSubsystem) -> sdl2::video::Window {
+    { // gl init version
+        let gl_attr = video_subsystem.gl_attr();
+        gl_attr.set_context_profile(sdl2::video::GLProfile::Core);
+        gl_attr.set_context_version(3, 0);
+    }
 
-fn main() {
 
-    let sdl_context = sdl2::init()
-        .unwrap();
-
-    let video_subsystem = sdl_context.video()
-        .unwrap();
     video_subsystem.gl_set_swap_interval(sdl2::video::SwapInterval::Immediate);
-    let window = video_subsystem.window(NAME, SCREEN_SIZE.x as u32, SCREEN_SIZE.y as u32)
+    video_subsystem.window(NAME, SCREEN_SIZE.x as u32, SCREEN_SIZE.y as u32)
             .position_centered()
             .opengl()
             .build()
-            .unwrap();
-    let mut scene = Scene::new(SCREEN_SIZE);
-    let mut render_context = RenderContext::from_window(window);
+            .unwrap()
+}
+
+// TODO should be in platform ingnite function?
+fn init() -> SDLSys {
+    let sdl_context = sdl2::init()
+        .unwrap();
+
+    let mut video_subsystem = sdl_context.video()
+        .unwrap();
+
+    let window_subsystem = window_init(&mut video_subsystem);
 
     let audio_subsystem = sdl_context.audio()
         .unwrap();
-    let _image_context = sdl2::image::init(sdl2::image::INIT_PNG)
+
+    let timer_subsystem = sdl_context.timer()
         .unwrap();
 
-    let mut timer_subsystem = sdl_context.timer()
+    let gl_context = window_subsystem.gl_create_context()
+        .expect("Couldn't create GL context");
+
+    gl::load_with(
+        |name| video_subsystem.gl_get_proc_address(name) as *const _
+        );
+
+    let event_subsystem = sdl_context.event_pump()
         .unwrap();
+
+    SDLSys {
+        context: sdl_context,
+        video: video_subsystem,
+        window: window_subsystem,
+        gl_context: gl_context,
+        audio: audio_subsystem,
+        timer: timer_subsystem,
+        event: event_subsystem,
+    }
+
+}
+
+
+pub fn load_ressource<RType, F>(filepath: &str, mut func: F) -> RType
+    where F : FnMut(&String, &mut RType) -> (),
+          RType : Newable {
+
+    let mut ressource = RType::new();
+    platform::io::load_asset(filepath, |line: &String| {
+        // skip comment
+        match line.get(0..1) {
+            Some("#") => return,
+            _ => {}
+        }
+
+        func(line, &mut ressource);
+    });
+    ressource
+}
+
+type Keymap = HashMap<sdl2::keyboard::Keycode, usize>;
+
+impl Newable for Keymap {
+    fn new() -> Self {
+        HashMap::new()
+    }
+}
+
+pub fn load_keybind(filepath: &str) -> Keymap {
+    load_ressource(filepath, |line: &String, keymap: &mut Keymap| {
+        let array : Vec<&str> = line.trim().split(" ").collect();
+        let keyname = array[0];
+        let note = array[1];
+
+        // TODO change this with a logger function?
+        println!("{}, {}", keyname, note);
+
+        keymap.insert(
+            sdl2::keyboard::Keycode::from_name(keyname).unwrap(),
+            note.parse::<i32>().unwrap() as usize
+            );
+    })
+}
+
+pub struct DataBufferTest {
+    pub x: i32
+}
+
+struct Library {
+    pub path: String,
+    pub handle: libloading::Library
+}
+
+impl Library {
+    pub fn new(filepath: &str) -> Self {
+        let handle = libloading::Library::new(filepath).unwrap();
+        Library {
+            path: filepath.to_string(),
+            handle: handle
+        }
+    }
+
+    pub fn reload(lib: &mut Self) -> Self {
+        let filepath = lib.path.clone();
+        drop(&lib.handle);
+        println!("reloading library...");
+        Self::new(&filepath)
+    }
+
+    pub fn func(&self, buffer: &mut DataBufferTest) {
+        unsafe {
+            let func: libloading::Symbol<unsafe extern fn(&mut DataBufferTest) -> ()> = self.handle.get(b"hello_world").unwrap();
+            println!("sym loaded!");
+            func(buffer);
+            println!("func called!");
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ProgramDef {
+    vertex: String,
+    fragment: String,
+}
+
+fn main() {
+    let mut buffer = DataBufferTest{x: 1};
+    let library_paths = ["dylibtest/target/release/libdylibtest1.so", "dylibtest/target/release/libdylibtest2.so"];
+    let mut library_index = 0;
+    let mut library = Library::new(library_paths[library_index]);
+    library_index = 1;
+
+
+    let mut systems = init();
 
     let mut last_frame_time = 0 as u32;
+    // let mut sprite = Sprite::new(Vec2::new(10.0, 10.0), Vec2::new(100.0, 100.0));
 
     let desired_spec = AudioSpecDesired {
-        //freq: Some(44_100),
-        freq: Some(22_050),
+        freq: Some(2*22_050),
         channels: Some(2),
         samples: None
     };
 
-    let mut device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+    let instrument : synth::Instrument =
+      serde_yaml::from_str(&platform::io::read_file("assets/instrument/test.yml")).unwrap();
+    println!("instr: {:?}", instrument);
+
+    let mut device = systems.audio.open_playback(None, &desired_spec, |spec| {
         println!("{:?}", spec);
-        Synthesizer::new(spec.freq)
+        Synthesizer::new(spec.freq, instrument)
     }).unwrap();
 
     device.resume();
 
-
-    //let _font_map = render_context.load_texture(Path::new("assets/font.png"))
-    //    .unwrap();
-    // let ttf_context = sdl2::ttf::init().unwrap();
-
-    let mut event_pump = sdl_context.event_pump()
-        .unwrap();
-
-    // let sprite_color = Color::RGB(255, 255, 255);
-    // let bg_color = Color::RGB(0, 0, 128);
+    // TODO rework keyboard handling API!
     let mut prev_keys = HashSet::new();
-    let mut keyboard_notes = HashMap::new();
+    let keyboard_notes = load_keybind("assets/keybind.txt");
 
-    keyboard_notes.insert(Keycode::Q, 0 as usize);
-    keyboard_notes.insert(Keycode::S, 1 as usize);
-    keyboard_notes.insert(Keycode::D, 2 as usize);
-    keyboard_notes.insert(Keycode::F, 3 as usize);
-    keyboard_notes.insert(Keycode::J, 4 as usize);
-    keyboard_notes.insert(Keycode::K, 5 as usize);
-    keyboard_notes.insert(Keycode::L, 6 as usize);
-    keyboard_notes.insert(Keycode::M, 7 as usize);
-    keyboard_notes.insert(Keycode::W, 8 as usize);
-    keyboard_notes.insert(Keycode::X, 9 as usize);
-    keyboard_notes.insert(Keycode::C, 10 as usize);
-    keyboard_notes.insert(Keycode::V, 11 as usize);
-    keyboard_notes.insert(Keycode::N, 12 as usize);
-
-    // let mut render_time_accumulator = 0.0;
-    // let render_time_update = 10.0/1000.0;
-    // let mut block_size = 16;
     let mut frame_count = 10;
     let mut frame_count_time = 0.0;
     let mut frame_per_sec = 60.0;
-    let mut universe = Universe::new(0.5);
+
+    let vertex_data = load_obj("assets/triangle.obj");
+
+    // TODO abstract gl object loading!
+
+    // TODO gl program in yaml seems ok
+    let program_def: ProgramDef = serde_yaml::from_str(&platform::io::read_file("assets/sprite.yml")).unwrap();
+    println!("{:?}", program_def);
+
+    //println!("loaded instrument: {:?}", instrument.clone());
+
+    let program = make_program(&program_def.vertex, &program_def.fragment);
+    let mut vbo = 0;
+    let mut vao = 0;
+    unsafe { // uploading gl data
+        gl::GenVertexArrays(1, &mut vao);
+        gl::BindVertexArray(vao);
+
+        gl::BindVertexArray(vao);
+        gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+        gl::GenBuffers(1, &mut vbo);
+        gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+        gl::BufferData(
+            gl::ARRAY_BUFFER,
+            (vertex_data.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
+            vertex_data.as_ptr() as *const gl::types::GLvoid,
+            gl::STATIC_DRAW
+        );
+        // Use shader program
+        gl::UseProgram(program);
+        gl::BindFragDataLocation(program, 0, CString::new("out_color").unwrap().as_ptr());
+
+        // Specify the layout of the vertex data
+        let pos_attr = gl::GetAttribLocation(program, CString::new("position").unwrap().as_ptr());
+        let color_attr = gl::GetAttribLocation(program, CString::new("color").unwrap().as_ptr());
+
+        let stride = 6 * mem::size_of::<GLfloat>() as GLsizei;
+        gl::EnableVertexAttribArray(pos_attr as GLuint);
+        gl::VertexAttribPointer(pos_attr as GLuint, 3, gl::FLOAT, gl::FALSE as GLboolean, stride, ptr::null());
+        gl::EnableVertexAttribArray(color_attr as GLuint);
+        gl::VertexAttribPointer(color_attr as GLuint, 3, gl::FLOAT, gl::FALSE as GLboolean, stride, (3 * mem::size_of::<GLfloat>()) as *const c_void);
+    }
+
+    // TODO meh dirty
+    let tri_number = vertex_data.len() as i32 / 6;
+
     let main_loop = || {
-        let new_frame_time = timer_subsystem.ticks();
+        let new_frame_time = systems.timer.ticks();
         let eps = (new_frame_time - last_frame_time) as f32 / 1000.0;
         last_frame_time = new_frame_time;
 
-        for event in event_pump.poll_iter() {
+        for event in systems.event.poll_iter() {
+            // TODO use a message queue to dispatch event to subsystems
             match event {
                 Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     platform::exit_application();
@@ -177,19 +311,25 @@ fn main() {
                     // (*lock).switch_instrument(1);
                 },
                 Event::KeyDown { keycode: Some(Keycode::Up), ..} => {
-                    universe.set_time_update(0.05);
                     // block_size = utils::clamp(block_size >> 1, 1, 64);
                 },
                 Event::KeyDown { keycode: Some(Keycode::Down), ..} => {
                     // block_size = utils::clamp(block_size << 1, 1, 64);
-                    universe.set_time_update(-0.05);
                 },
                 Event::KeyDown { keycode: Some(Keycode::F1), ..} => {
                     let mut lock = device.lock();
                     (*lock).toggle_audio();
                 },
                 Event::KeyDown { keycode: Some(Keycode::F2), ..} => {
+                    let path = library_paths[library_index];
+                    library_index = (library_index + 1) % 2;
+                    println!("loading library: {}", path);
+                    library = Library::new(&path);
+
                 },
+                Event::KeyDown { keycode: Some(Keycode::F3), ..} => {
+                    library.func(&mut buffer);
+                }
                 //Event::KeyDown { keycode: Some(Keycode::F2), ..} => {
                 //    let mut lock = device.lock();
                 //    print!("info\nenvelop: {}\nvolume: {}", lock.envelop, lock.volume);
@@ -212,7 +352,8 @@ fn main() {
         }
 
         // TODO wrap me?
-        let keys = event_pump.keyboard_state()
+        {
+        let keys = systems.event.keyboard_state()
             .pressed_scancodes()
             .filter_map(Keycode::from_scancode)
             .collect();
@@ -241,11 +382,13 @@ fn main() {
         }
 
         prev_keys = keys;
-        universe.tick(eps);
+        }
+
+        // universe.tick(eps);
 
         // rendering:
-        render_context.clear();
-        //canvas.set_draw_color(sprite_color);
+        // render_context.clear();
+        // canvas.set_draw_color(sprite_color);
 
         {
             let lock = device.lock();
@@ -279,7 +422,7 @@ fn main() {
         //        renderer::display_cell(&mut canvas, x as i32, y as i32, block_size, color).unwrap();
         //    }
         //}
-        universe.render(&mut render_context);
+        //universe.render(&mut render_context);
         //{
         //    let txQuery = _font_map.query();
         //    let src_rect = rect!(0, 0, txQuery.width, txQuery.height);
@@ -287,12 +430,34 @@ fn main() {
         //    println!("{:?}",txQuery);
         //    canvas.copy(&_font_map, src_rect, dst_rect);
         //}
-        render_context.present();
+        //sprite.render(&mut render_context);
 
+
+
+        //ui.window(im_str!("Hello World"))
+        //    .size((100.0,100.0), imgui::ImGuiCond::FirstUseEver)
+        //    .build(|| {
+        //        ui.text(im_str!("hello"));
+        //    });
+        // window.gl_set_context_to_current();
+            // render_context.begin_gl();
+        unsafe {
+            systems.window.gl_set_context_to_current();
+            gl::ClearColor(0.0, 0.0, 0.0, 1.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT);
+            gl::DrawArrays(gl::TRIANGLES, 0, tri_number);
+        }
+
+        systems.window.gl_swap_window();
+        // render_context.present();
 
         platform::sleep();
-
     };
 
     platform::start_loop(main_loop);
+    unsafe {
+        gl::DeleteProgram(program);
+        gl::DeleteBuffers(1, &vbo);
+        gl::DeleteVertexArrays(1, &vao);
+    }
 }

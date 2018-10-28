@@ -1,3 +1,9 @@
+/**
+ * platform abstraction layer
+ */
+
+// io module
+pub mod io;
 
 //{ EMSCRIPTEN_CONFIG:
 #[cfg(target_os = "emscripten")]
@@ -5,12 +11,12 @@ pub mod emscripten;
 
 #[cfg(target_os = "emscripten")]
 pub fn exit_application() -> () {
-    emscripten::emscripten::exit_application();
+    emscripten::exit_application();
 }
 
 #[cfg(target_os = "emscripten")]
 pub fn start_loop<F>(callback: F) where F: FnMut() {
-    emscripten::emscripten::set_main_loop_callback(callback);
+    emscripten::set_main_loop_callback(callback);
 }
 //}
 
@@ -33,12 +39,11 @@ pub fn start_loop<F>(mut main_loop: F) where F: FnMut() {
 //}
 
 //{ SHARED_CONFIG:
-use std::time::Duration;
-
-// const sleep_duration : Duration = ;
 
 pub fn sleep() {
-    ::std::thread::sleep(Duration::new(0, 1));
+    use std::time::Duration;
+    const duration : u32 = 1_000_000u32 / 60;
+    ::std::thread::sleep(Duration::new(0, duration));
 }
 //}
 

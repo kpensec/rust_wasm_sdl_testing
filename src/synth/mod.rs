@@ -120,11 +120,11 @@ pub struct Synthesizer {
 
 impl Synthesizer {
 
-    pub fn new(playback_freq: i32) -> Self{
+    pub fn new(playback_freq: i32, instrument: Instrument) -> Self{
         Synthesizer {
             volume: 1.0,
-            keys: [ Key::new(0), Key::new(1), Key::new(2), Key::new(3), Key::new(4), Key::new(5), Key::new(6),
-                Key::new(7), Key::new(8), Key::new(9), Key::new(10), Key::new(11), Key::new(12), ],
+            keys: [ Key::new(0, instrument.clone()), Key::new(1, instrument.clone()), Key::new(2, instrument.clone()), Key::new(3, instrument.clone()), Key::new(4, instrument.clone()), Key::new(5, instrument.clone()), Key::new(6, instrument.clone()),
+                Key::new(7, instrument.clone()), Key::new(8, instrument.clone()), Key::new(9, instrument.clone()), Key::new(10, instrument.clone()), Key::new(11, instrument.clone()), Key::new(12, instrument.clone()), ],
             step: 1.0 / playback_freq as f32,
             active: true,
             sequencer: Sequencer::new(),
@@ -221,3 +221,4 @@ impl AudioCallback for Synthesizer {
     }
 }
 
+pub use self::instrument::Instrument;

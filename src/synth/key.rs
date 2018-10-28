@@ -1,17 +1,18 @@
 use utils::clamp;
-use synth::instrument::TestInstrument;
+use synth::instrument::Instrument; // TODO rm this coupling!
+use synth::envelop::Envelop;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct Key {
     pub active: bool,
     pub note_idx: i32,
     pub volume: f32,
     time: f32,
     key_state: KeyState,
-    instrument: TestInstrument,
+    instrument: Instrument,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum KeyState {
     Pressed,
     Released(f32),
@@ -19,14 +20,14 @@ pub enum KeyState {
 }
 
 impl Key {
-    pub fn new(note_idx: i32) -> Self {
+    pub fn new(note_idx: i32, instrument: Instrument) -> Self {
         Key {
             active: false,
             note_idx: note_idx,
             volume: 0.2,
             time: 0.0,
             key_state: KeyState::Mute,
-            instrument: TestInstrument::new()
+            instrument: instrument
         }
     }
 
@@ -52,9 +53,16 @@ impl Key {
     }
 
     pub fn update(&mut self, global_volume: f32, eps: f32) -> f32 {
+        let envelop = Envelop {
+                attack: 0.05,
+                decay: 0.15,
+                release: 0.1,
+                peak_amp: 1.0,
+                sustain_amp: 0.5
+        };
         let volume = self.volume * global_volume;
-        let envelop_amplitude = self.instrument.envelop.get_amplitude(self.time, self.key_state);
-        let instrument_sample = self.instrument.get_sample(self.time, self.note_idx);
+        let envelop_amplitude = envelop.get_amplitude(self.time, self.key_state.clone());
+        let instrument_sample = self.clone().instrument.get_sample(self.time, self.note_idx);
         self.time += eps;
         match self.key_state {
             KeyState::Released(..) => {

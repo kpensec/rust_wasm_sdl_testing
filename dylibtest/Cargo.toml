@@ -1,0 +1,7 @@
+[package]
+name = "dylibtest"
+version = "0.1.0"
+
+[lib]
+name = "dylibtest"
+crate-type = ["dylib"]

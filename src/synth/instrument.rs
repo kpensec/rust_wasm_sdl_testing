@@ -3,6 +3,42 @@ use synth::envelop::Envelop;
 use synth::note::get_note_freq;
 use utils::Unit;
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct Oscillator {
+    osc_func: usize,
+    osc_amp: Unit,
+    osc_note_offset: i32, // change this to freq offset?
+    lfo_func: usize,
+    lfo_amp: Unit,
+    lfo_freq: Unit,
+}
+
+static osc_funcs: [fn(Unit, Unit) -> Unit; 4] = [
+    sine_wave,
+    saw_wave,
+    square_wave,
+    noise
+];
+
+impl Oscillator {
+    pub fn get_sample(self, time: Unit, note: i32) -> Unit {
+        osc_funcs[self.osc_func](time, get_note_freq(note + self.osc_note_offset)) * self.osc_amp
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Instrument(Vec<Oscillator>);
+
+impl Instrument {
+    pub fn get_sample(self, time: Unit, note: i32) -> Unit {
+        self.0.into_iter()
+            .map(|osc| osc.get_sample(time, note))
+            .fold(0.0, |acc, sample| acc + sample)
+    }
+}
+
+// need to remove below code?
+
 #[derive(Clone, Copy)]
 struct LowFrequencyOscillator {
     pub amplitude: Unit,

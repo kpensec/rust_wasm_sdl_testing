@@ -14,5 +14,6 @@ msvc/
 gnu-mingw/
 *.dll
 .vim/
-assets/
 log/
+
+fonts/
