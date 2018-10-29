@@ -110,26 +110,28 @@ impl Sequencer {
 
 pub struct Synthesizer {
     volume: f32,
-    keys: [Key; 13],
+    keys: Vec<Key>,
     step: f32,
     active: bool,
     sequencer: Sequencer,
     instrument_idx: usize,
-    instrument_names: Vec<String>,
+    instruments: Vec<Instrument>,
 }
 
 impl Synthesizer {
 
-    pub fn new(playback_freq: i32, instrument: Instrument) -> Self{
+    pub fn new(playback_freq: i32) -> Self{
+        let note_range : Vec<i32> = (0..13).collect();
+        let keys = note_range.iter().map(|&x| Key::new(x,0)).collect();
+
         Synthesizer {
             volume: 1.0,
-            keys: [ Key::new(0, instrument.clone()), Key::new(1, instrument.clone()), Key::new(2, instrument.clone()), Key::new(3, instrument.clone()), Key::new(4, instrument.clone()), Key::new(5, instrument.clone()), Key::new(6, instrument.clone()),
-                Key::new(7, instrument.clone()), Key::new(8, instrument.clone()), Key::new(9, instrument.clone()), Key::new(10, instrument.clone()), Key::new(11, instrument.clone()), Key::new(12, instrument.clone()), ],
+            keys: keys,
             step: 1.0 / playback_freq as f32,
             active: true,
             sequencer: Sequencer::new(),
             instrument_idx: 0,
-            instrument_names: vec!["harmonica".to_string(), "piano".to_string()]
+            instruments: vec![]
         }
     }
 
@@ -149,13 +151,21 @@ impl Synthesizer {
         self.volume = clamp(self.volume + q, 0.0, 1.0);
     }
 
-    pub fn get_instrument(&self) -> String {
-        self.instrument_names[self.instrument_idx].to_string()
+    pub fn set_instrument(&mut self, instrument: Instrument) {
+        if self.instruments.len() == 0 {
+            self.instruments.push(instrument)
+        } else {
+            self.instruments[0] = instrument;
+        }
     }
 
-    pub fn switch_instrument(&mut self, step: i32) {
-        self.instrument_idx = ((self.instrument_idx as i32 + step) as usize) % self.instrument_names.len();
-    }
+   // pub fn get_instrument(&self) -> String {
+   //     self.instrument_names[self.instrument_idx].to_string()
+   // }
+
+   // pub fn switch_instrument(&mut self, step: i32) {
+   //     self.instrument_idx = ((self.instrument_idx as i32 + step) as usize) % self.instrument_names.len();
+   // }
 
     pub fn start_note(&mut self, key_idx: usize) {
         // TODO vec upsert here!
@@ -180,9 +190,12 @@ impl Synthesizer {
 
     fn get_sample(&mut self) -> f32 {
         let mut result = 0.0;
+        // TODO this is a map fold...
         for key in self.keys.iter_mut() {
-            result = Self::blend_sample(result, key.update(self.volume, self.step));
+            let new_sample = key.update(self.volume, self.step, &self.instruments);
+            result = Self::blend_sample(result, new_sample);
         }
+
         if self.sequencer.is_playing() {
             result = Self::blend_sample(result, self.sequencer.get_sample(self.volume, self.step))
         }

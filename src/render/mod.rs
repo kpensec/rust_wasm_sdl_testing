@@ -98,7 +98,7 @@ impl<T: RenderTarget> RenderContext<T> {
 
 impl RenderContext<Window> {
     pub fn begin_gl(&mut self) {
-        self.canvas.window().gl_set_context_to_current();
+        self.canvas.window().gl_set_context_to_current().unwrap();
     }
 }
 

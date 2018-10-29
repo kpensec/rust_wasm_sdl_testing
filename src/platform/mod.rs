@@ -42,8 +42,8 @@ pub fn start_loop<F>(mut main_loop: F) where F: FnMut() {
 
 pub fn sleep() {
     use std::time::Duration;
-    const duration : u32 = 1_000_000u32 / 60;
-    ::std::thread::sleep(Duration::new(0, duration));
+    const DURATION : u32 = 1_000_000u32 / 60;
+    ::std::thread::sleep(Duration::new(0, DURATION));
 }
 //}
 

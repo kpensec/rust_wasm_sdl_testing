@@ -31,6 +31,6 @@ impl Renderer for Sprite {
         let p = self.position.clone();
         // let t = self.transform.clone();
         let s = self.size.clone();
-        ctx.draw_rect( p, s);
+        ctx.draw_rect( p, s).unwrap();
     }
 }

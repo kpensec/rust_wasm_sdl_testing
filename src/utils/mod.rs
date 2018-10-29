@@ -23,11 +23,11 @@ pub struct Vec2 {
     pub y: Unit,
 }
 
-impl Vec2 {
-    pub fn new(x: Unit, y: Unit) -> Self {
-        Vec2{x,y}
-    }
-}
+// impl Vec2 {
+//     pub fn new(x: Unit, y: Unit) -> Self {
+//         Vec2{x,y}
+//     }
+// }
 
 #[derive(Clone, Copy)]
 pub struct Vec3 {

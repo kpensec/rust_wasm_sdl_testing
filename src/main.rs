@@ -26,7 +26,7 @@ use sdl2::audio::{AudioSpecDesired};
 // TODO same
 use gl::types::*;
 
-use utils::{Vec2, Unit, Newable};
+use utils::{Vec2, Newable};
 use render::gl_utils::make_program;
 use synth::Synthesizer;
 
@@ -238,7 +238,10 @@ fn main() {
 
     let mut device = systems.audio.open_playback(None, &desired_spec, |spec| {
         println!("{:?}", spec);
-        Synthesizer::new(spec.freq, instrument)
+        let mut synth = Synthesizer::new(spec.freq);
+        synth.set_instrument(instrument);
+        synth
+
     }).unwrap();
 
     device.resume();
@@ -309,12 +312,13 @@ fn main() {
                     println!("Application exited!");
                 },
                 Event::KeyDown { keycode: Some(Keycode::Left), ..} => {
-                    let mut lock = device.lock();
-                    (*lock).switch_instrument(-1);
+                    //let mut lock = device.lock();
+                    //(*lock).switch_instrument(-1);
                 },
                 Event::KeyDown { keycode: Some(Keycode::Right), ..} => {
-                    /*let mut lock =*/ device.lock().switch_instrument(1);
-                    // (*lock).switch_instrument(1);
+                    /*let mut lock = device.lock().switch_instrument(1);
+                    (*lock).switch_instrument(1);
+                    */
                 },
                 Event::KeyDown { keycode: Some(Keycode::Up), ..} => {
                     // block_size = utils::clamp(block_size >> 1, 1, 64);
@@ -396,11 +400,7 @@ fn main() {
         // render_context.clear();
         // canvas.set_draw_color(sprite_color);
 
-        {
-            let lock = device.lock();
-            let _volume = (*lock).get_volume();
-            let _instrument = (*lock).get_instrument();
-
+        { // fps counter
             frame_count_time += eps;
             frame_count -= 1;
             if frame_count == 0 {
@@ -410,7 +410,6 @@ fn main() {
                 frame_count = 60;
                 frame_per_sec =  frame_count as f32 / frame_count_time ;
                 frame_count_time = 0.0;
-            //    println!("fps: {:.*}", 2, frame_per_sec);
             }
             // canvas.render_text(&format!("fps: {:.*}", 2, frame_per_sec), &font, 0, Color::RGBA(((1.0+t)*128.0) as u8,((1.0-t) * 128.0) as u8,0,255));
             // canvas.render_text(&format!("volume: {}, red value: {}", volume, t), &font, 0, Color::RGBA(((1.0+t)*128.0) as u8,((1.0-t) * 128.0) as u8,0,255));
@@ -448,15 +447,14 @@ fn main() {
         // window.gl_set_context_to_current();
             // render_context.begin_gl();
         unsafe {
-            systems.window.gl_set_context_to_current();
+            systems.window.gl_set_context_to_current().unwrap();
             gl::ClearColor(0.0, 0.0, 0.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
             gl::DrawArrays(gl::TRIANGLES, 0, tri_number);
         }
 
+        // TODO both func call should be in platform present render idk...
         systems.window.gl_swap_window();
-        // render_context.present();
-
         platform::sleep();
     };
 

@@ -5,6 +5,9 @@ use std::io::BufReader;
 use std::error::Error;
 pub use std::io::BufRead;
 
+/**
+ *
+ */
 fn fetch_file(filepath: &str) -> BufReader<File> {
     let path = Path::new(filepath);
     let display = path.display();
@@ -16,7 +19,9 @@ fn fetch_file(filepath: &str) -> BufReader<File> {
     file
 }
 
-// apply function <func> on each line of the given file
+/**
+ * apply function <func> on each line of the given file
+ */
 pub fn load_asset<F>(filepath: &str, mut func : F) -> ()
     where F : FnMut(&String) -> () {
 

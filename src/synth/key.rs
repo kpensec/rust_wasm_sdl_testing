@@ -9,7 +9,7 @@ pub struct Key {
     pub volume: f32,
     time: f32,
     key_state: KeyState,
-    instrument: Instrument,
+    instrument_id: usize,
 }
 
 #[derive(Clone)]
@@ -20,14 +20,14 @@ pub enum KeyState {
 }
 
 impl Key {
-    pub fn new(note_idx: i32, instrument: Instrument) -> Self {
+    pub fn new(note_idx: i32, instrument_id: usize) -> Self {
         Key {
             active: false,
             note_idx: note_idx,
             volume: 0.2,
             time: 0.0,
             key_state: KeyState::Mute,
-            instrument: instrument
+            instrument_id: instrument_id,
         }
     }
 
@@ -52,7 +52,7 @@ impl Key {
         }
     }
 
-    pub fn update(&mut self, global_volume: f32, eps: f32) -> f32 {
+    pub fn update(&mut self, global_volume: f32, eps: f32, instruments: &Vec<Instrument>) -> f32 {
         let envelop = Envelop {
                 attack: 0.05,
                 decay: 0.15,
@@ -62,7 +62,10 @@ impl Key {
         };
         let volume = self.volume * global_volume;
         let envelop_amplitude = envelop.get_amplitude(self.time, self.key_state.clone());
-        let instrument_sample = self.clone().instrument.get_sample(self.time, self.note_idx);
+        let instrument_sample = instruments.get(self.instrument_id)
+                                           .unwrap()
+                                           .clone()
+                                           .get_sample(self.time, self.note_idx);
         self.time += eps;
         match self.key_state {
             KeyState::Released(..) => {

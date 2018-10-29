@@ -5,13 +5,13 @@ use std::ffi::CString;
 use std::{str, ptr};
 use platform::io::read_file;
 
-type GLH_Program = GLuint;
+type GlhProgram = GLuint;
 
 fn compile_shader_file(path: &str, ty: GLenum) -> GLuint {
     compile_shader(read_file(path).as_str(), ty)
 }
 
-pub fn make_program(vs_path: &str, fs_path: &str) -> GLH_Program {
+pub fn make_program(vs_path: &str, fs_path: &str) -> GlhProgram {
     let vs = compile_shader_file(vs_path, gl::VERTEX_SHADER);
     let fs = compile_shader_file(fs_path, gl::FRAGMENT_SHADER);
     link_program(vs, fs)

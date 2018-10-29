@@ -13,7 +13,7 @@ pub struct Oscillator {
     lfo_freq: Unit,
 }
 
-static osc_funcs: [fn(Unit, Unit) -> Unit; 4] = [
+static OSC_FUNCS: [fn(Unit, Unit) -> Unit; 4] = [
     sine_wave,
     saw_wave,
     square_wave,
@@ -22,7 +22,7 @@ static osc_funcs: [fn(Unit, Unit) -> Unit; 4] = [
 
 impl Oscillator {
     pub fn get_sample(self, time: Unit, note: i32) -> Unit {
-        osc_funcs[self.osc_func](time, get_note_freq(note + self.osc_note_offset)) * self.osc_amp
+        OSC_FUNCS[self.osc_func](time, get_note_freq(note + self.osc_note_offset)) * self.osc_amp
     }
 }
 
