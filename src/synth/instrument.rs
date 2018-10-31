@@ -22,7 +22,9 @@ static OSC_FUNCS: [fn(Unit, Unit) -> Unit; 4] = [
 
 impl Oscillator {
     pub fn get_sample(self, time: Unit, note: i32) -> Unit {
-        OSC_FUNCS[self.osc_func](time, get_note_freq(note + self.osc_note_offset)) * self.osc_amp
+        let note_freq = get_note_freq(note + self.osc_note_offset);
+        let lfo_shift = OSC_FUNCS[self.lfo_func](time, self.lfo_freq) * self.lfo_amp;
+        OSC_FUNCS[self.osc_func](time + lfo_shift, note_freq) * self.osc_amp
     }
 }
 

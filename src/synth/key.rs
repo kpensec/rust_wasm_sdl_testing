@@ -1,15 +1,17 @@
 use utils::clamp;
-use synth::instrument::Instrument; // TODO rm this coupling!
+
+// TODO well this is kinda stupid...
+// TODO coupling should be in an enveloping system
+use synth::instrument::Instrument;
 use synth::envelop::Envelop;
 
-#[derive(Clone)]
 pub struct Key {
     pub active: bool,
     pub note_idx: i32,
     pub volume: f32,
     time: f32,
     key_state: KeyState,
-    instrument_id: usize,
+    instrument_id: usize, // TODO duh should be in parent system
 }
 
 #[derive(Clone)]

@@ -232,13 +232,13 @@ fn main() {
         samples: None
     };
 
-    let instrument : synth::Instrument =
-      serde_yaml::from_str(&platform::io::read_file("assets/instrument/test.yml")).unwrap();
-    println!("instr: {:?}", instrument);
 
     let mut device = systems.audio.open_playback(None, &desired_spec, |spec| {
         println!("{:?}", spec);
         let mut synth = Synthesizer::new(spec.freq);
+        let instrument : synth::Instrument =
+            serde_yaml::from_str(&platform::io::read_file("assets/instrument/test.yml")).unwrap();
+        println!("instr: {:?}", instrument);
         synth.set_instrument(instrument);
         synth
 
@@ -338,7 +338,10 @@ fn main() {
 
                 },
                 Event::KeyDown { keycode: Some(Keycode::F3), ..} => {
-                    library.func(&mut buffer);
+                    let instrument : synth::Instrument =
+                        serde_yaml::from_str(&platform::io::read_file("assets/instrument/test.yml")).unwrap();
+                    println!("instr: {:?}", instrument);
+                    (*device.lock()).set_instrument(instrument);
                 }
                 //Event::KeyDown { keycode: Some(Keycode::F2), ..} => {
                 //    let mut lock = device.lock();

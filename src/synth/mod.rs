@@ -168,7 +168,7 @@ impl Synthesizer {
    // }
 
     pub fn start_note(&mut self, key_idx: usize) {
-        // TODO vec upsert here!
+        // TODO change container type for upserting?
         self.keys[key_idx].press();
         if self.sequencer.is_recording() {
             self.sequencer.record(key_idx);
