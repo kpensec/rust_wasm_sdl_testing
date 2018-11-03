@@ -1,13 +1,12 @@
-
 use std::path::Path;
 use std::fs::File;
 use std::io::BufReader;
 use std::error::Error;
 pub use std::io::BufRead;
 
-/**
- *
- */
+// TODO API should return a Result type
+
+/// Create a BufReader with a given path
 fn fetch_file(filepath: &str) -> BufReader<File> {
     let path = Path::new(filepath);
     let display = path.display();

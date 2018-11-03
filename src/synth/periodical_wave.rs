@@ -25,5 +25,5 @@ pub fn square_wave(time: f32, freq: f32) -> f32 {
 pub fn noise(_time: f32, _freq: f32) -> f32 {
     use self::rand::{Rng, thread_rng};
     let mut rng = thread_rng();
-    rng.next_f32() * 2.0 - 1.0
+    rng.gen::<f32>() * 2.0 - 1.0
 }

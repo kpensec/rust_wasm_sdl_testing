@@ -1,9 +1,14 @@
 extern crate sdl2;
 extern crate rand;
 extern crate gl;
-#[macro_use] extern crate serde_derive;
+#[macro_use] use std::format;
+#[macro_use]
+extern crate serde_derive;
 extern crate serde_yaml;
-extern crate libloading;
+#[macro_use]
+extern crate imgui;
+extern crate imgui_sdl2;
+extern crate imgui_opengl_renderer;
 
 mod ui;
 mod utils;
@@ -26,22 +31,17 @@ use sdl2::audio::{AudioSpecDesired};
 // TODO same
 use gl::types::*;
 
+
 use utils::{Vec2, Newable};
 use render::gl_utils::make_program;
-use synth::Synthesizer;
+use synth::{Synthesizer, Oscillator};
 
-// TODO read from config file!
-//const NAME: &'static str =;
-//
-//const SCREEN_SIZE: Vec2 = Vec2 {
-//    x: 1024 as Unit,
-//    y: 768 as Unit
-//};
 #[derive(Debug, Serialize, Deserialize)]
 struct WindowConf {
   name: String,
   size: Vec2
 }
+
 // mod RessourceManager
 fn load_obj(filepath: &str) -> Vec<f32> {
     let mut result : Vec<f32> = Vec::<f32>::new();
@@ -88,6 +88,7 @@ fn window_init(video_subsystem: &mut sdl2::VideoSubsystem) -> sdl2::video::Windo
     video_subsystem.window(&window_cfg.name, window_cfg.size.x as u32, window_cfg.size.y as u32)
             .position_centered()
             .opengl()
+            .allow_highdpi()
             .build()
             .unwrap()
 }
@@ -111,9 +112,6 @@ fn init() -> SDLSys {
     let gl_context = window_subsystem.gl_create_context()
         .expect("Couldn't create GL context");
 
-    gl::load_with(
-        |name| video_subsystem.gl_get_proc_address(name) as *const _
-        );
 
     let event_subsystem = sdl_context.event_pump()
         .unwrap();
@@ -176,70 +174,38 @@ pub struct DataBufferTest {
     pub x: i32
 }
 
-struct Library {
-    pub path: String,
-    pub handle: libloading::Library
-}
-
-impl Library {
-    pub fn new(filepath: &str) -> Self {
-        let handle = libloading::Library::new(filepath).unwrap();
-        Library {
-            path: filepath.to_string(),
-            handle: handle
-        }
-    }
-
-    pub fn reload(lib: &mut Self) -> Self {
-        let filepath = lib.path.clone();
-        drop(&lib.handle);
-        println!("reloading library...");
-        Self::new(&filepath)
-    }
-
-    pub fn func(&self, buffer: &mut DataBufferTest) {
-        unsafe {
-            let func: libloading::Symbol<unsafe extern fn(&mut DataBufferTest) -> ()> = self.handle.get(b"hello_world").unwrap();
-            println!("sym loaded!");
-            func(buffer);
-            println!("func called!");
-        }
-    }
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 struct ProgramDef {
     vertex: String,
     fragment: String,
 }
 
-fn main() {
-    let mut buffer = DataBufferTest{x: 1};
-    let library_paths = ["dylibtest/target/release/libdylibtest1.so", "dylibtest/target/release/libdylibtest2.so"];
-    let mut library_index = 0;
-    let mut library = Library::new(library_paths[library_index]);
-    library_index = 1;
+fn load_instrument(path: &str) -> synth::Instrument {
+    serde_yaml::from_str::<synth::Instrument>(
+        &platform::io::read_file(path)
+    ).unwrap()
+}
 
+fn main() {
 
     let mut systems = init();
 
-    let mut last_frame_time = 0 as u32;
-    // let mut sprite = Sprite::new(Vec2::new(10.0, 10.0), Vec2::new(100.0, 100.0));
+    // need to keep a ref to loaded pointer!
+    let _gl = gl::load_with(|name| unsafe{ std::mem::transmute(systems.video.gl_get_proc_address(name)) } );
 
+    let mut last_frame_time = 0 as u32;
     let desired_spec = AudioSpecDesired {
         freq: Some(2*22_050),
         channels: Some(2),
         samples: None
     };
 
-
+    const INSTRUMENT_PATH : &'static str = "assets/instrument/test.yml";
+    let mut edited_instrument = load_instrument(INSTRUMENT_PATH);
     let mut device = systems.audio.open_playback(None, &desired_spec, |spec| {
         println!("{:?}", spec);
         let mut synth = Synthesizer::new(spec.freq);
-        let instrument : synth::Instrument =
-            serde_yaml::from_str(&platform::io::read_file("assets/instrument/test.yml")).unwrap();
-        println!("instr: {:?}", instrument);
-        synth.set_instrument(instrument);
+        synth.set_instrument(edited_instrument.clone());
         synth
 
     }).unwrap();
@@ -257,12 +223,9 @@ fn main() {
     let vertex_data = load_obj("assets/triangle.obj");
 
     // TODO abstract gl object loading!
-
     // TODO gl program in yaml seems ok
     let program_def: ProgramDef = serde_yaml::from_str(&platform::io::read_file("assets/sprite.yml")).unwrap();
     println!("{:?}", program_def);
-
-    //println!("loaded instrument: {:?}", instrument.clone());
 
     let program = make_program(&program_def.vertex, &program_def.fragment);
     let mut vbo = 0;
@@ -299,6 +262,13 @@ fn main() {
     // TODO meh dirty
     let tri_number = vertex_data.len() as i32 / 6;
 
+    let mut imgui = imgui::ImGui::init();
+    imgui.set_ini_filename(None);
+    let mut imgui_sdl2 = imgui_sdl2::ImguiSdl2::new(&mut imgui);
+
+    let renderer = imgui_opengl_renderer::Renderer::new(&mut imgui, |s| systems.video.gl_get_proc_address(s) as _);
+
+    let mut display_quit = false;
     let main_loop = || {
         let new_frame_time = systems.timer.ticks();
         let eps = (new_frame_time - last_frame_time) as f32 / 1000.0;
@@ -306,47 +276,33 @@ fn main() {
 
         for event in systems.event.poll_iter() {
             // TODO use a message queue to dispatch event to subsystems
+            imgui_sdl2.handle_event(&mut imgui, &event);
+            if imgui_sdl2.ignore_event(&event) {
+                continue;
+            }
             match event {
                 Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-                    platform::exit_application();
-                    println!("Application exited!");
+                    display_quit = true;
                 },
                 Event::KeyDown { keycode: Some(Keycode::Left), ..} => {
-                    //let mut lock = device.lock();
-                    //(*lock).switch_instrument(-1);
                 },
                 Event::KeyDown { keycode: Some(Keycode::Right), ..} => {
-                    /*let mut lock = device.lock().switch_instrument(1);
-                    (*lock).switch_instrument(1);
-                    */
                 },
                 Event::KeyDown { keycode: Some(Keycode::Up), ..} => {
-                    // block_size = utils::clamp(block_size >> 1, 1, 64);
                 },
                 Event::KeyDown { keycode: Some(Keycode::Down), ..} => {
-                    // block_size = utils::clamp(block_size << 1, 1, 64);
                 },
                 Event::KeyDown { keycode: Some(Keycode::F1), ..} => {
                     let mut lock = device.lock();
                     (*lock).toggle_audio();
                 },
                 Event::KeyDown { keycode: Some(Keycode::F2), ..} => {
-                    let path = library_paths[library_index];
-                    library_index = (library_index + 1) % 2;
-                    println!("loading library: {}", path);
-                    library = Library::new(&path);
-
                 },
                 Event::KeyDown { keycode: Some(Keycode::F3), ..} => {
-                    let instrument : synth::Instrument =
-                        serde_yaml::from_str(&platform::io::read_file("assets/instrument/test.yml")).unwrap();
+                    let instrument = load_instrument(INSTRUMENT_PATH);
                     println!("instr: {:?}", instrument);
                     (*device.lock()).set_instrument(instrument);
                 }
-                //Event::KeyDown { keycode: Some(Keycode::F2), ..} => {
-                //    let mut lock = device.lock();
-                //    print!("info\nenvelop: {}\nvolume: {}", lock.envelop, lock.volume);
-                //},
                 Event::KeyDown { keycode: Some(Keycode::KpEnter), ..} => {
                     let mut lock = device.lock();
                     println!("volume -> {}", (*lock).get_volume());
@@ -364,44 +320,38 @@ fn main() {
             }
         }
 
-        // TODO wrap me?
-        {
-        let keys = systems.event.keyboard_state()
-            .pressed_scancodes()
-            .filter_map(Keycode::from_scancode)
-            .collect();
+        { // TODO wrap me?
+            let keys = systems.event.keyboard_state()
+                .pressed_scancodes()
+                .filter_map(Keycode::from_scancode)
+                .collect();
 
-        let new_keys = &keys - &prev_keys;
-        let old_keys = &prev_keys - &keys;
+            let new_keys = &keys - &prev_keys;
+            let old_keys = &prev_keys - &keys;
 
-        for key in new_keys {
-            match keyboard_notes.get(&key) {
-                Some(i) => {
-                    let mut lock = device.lock();
-                    (*lock).start_note(*i);
+            for key in new_keys {
+                match keyboard_notes.get(&key) {
+                    Some(i) => {
+                        let mut lock = device.lock();
+                        (*lock).start_note(*i);
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
-        }
 
-        for key in old_keys {
-            match keyboard_notes.get(&key) {
-                Some(i) => {
-                    let mut lock = device.lock();
-                    (*lock).release_note(*i);
+            for key in old_keys {
+                match keyboard_notes.get(&key) {
+                    Some(i) => {
+                        let mut lock = device.lock();
+                        (*lock).release_note(*i);
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
+
+            prev_keys = keys;
         }
 
-        prev_keys = keys;
-        }
-
-        // universe.tick(eps);
-
-        // rendering:
-        // render_context.clear();
-        // canvas.set_draw_color(sprite_color);
 
         { // fps counter
             frame_count_time += eps;
@@ -414,57 +364,102 @@ fn main() {
                 frame_per_sec =  frame_count as f32 / frame_count_time ;
                 frame_count_time = 0.0;
             }
-            // canvas.render_text(&format!("fps: {:.*}", 2, frame_per_sec), &font, 0, Color::RGBA(((1.0+t)*128.0) as u8,((1.0-t) * 128.0) as u8,0,255));
-            // canvas.render_text(&format!("volume: {}, red value: {}", volume, t), &font, 0, Color::RGBA(((1.0+t)*128.0) as u8,((1.0-t) * 128.0) as u8,0,255));
-            // canvas.render_text(&format!("current intstrument: {}", instrument), &font, 1, Color::RGBA(255,255,0,255));
-            // canvas.render_text(&format!("universe update time: {}", universe.get_time_update()), &font, 2, Color::RGBA(255,255,0,255));
         }
-        //for y in 8..SCREEN_HEIGHT/block_size - 8 {
-        //    for x in 8..SCREEN_WIDTH/block_size - 8 {
-        //        let color = Color::RGB(
-        //            (rand::random::<f32>() * 128.0 + 64.0) as u8,
-        //            (rand::random::<f32>() * 128.0 + 64.0) as u8,
-        //            (rand::random::<f32>() * 128.0 + 64.0) as u8,
-        //            );
 
-        //        renderer::display_cell(&mut canvas, x as i32, y as i32, block_size, color).unwrap();
-        //    }
-        //}
-        //universe.render(&mut render_context);
-        //{
-        //    let txQuery = _font_map.query();
-        //    let src_rect = rect!(0, 0, txQuery.width, txQuery.height);
-        //    let dst_rect = rect!(0, 0, txQuery.width * 2, txQuery.height * 2);
-        //    println!("{:?}",txQuery);
-        //    canvas.copy(&_font_map, src_rect, dst_rect);
-        //}
-        //sprite.render(&mut render_context);
-
-
-
-        //ui.window(im_str!("Hello World"))
-        //    .size((100.0,100.0), imgui::ImGuiCond::FirstUseEver)
-        //    .build(|| {
-        //        ui.text(im_str!("hello"));
-        //    });
-        // window.gl_set_context_to_current();
-            // render_context.begin_gl();
         unsafe {
             systems.window.gl_set_context_to_current().unwrap();
-            gl::ClearColor(0.0, 0.0, 0.0, 1.0);
+            gl::ClearColor(0.2, 0.2, 0.2, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
-            gl::DrawArrays(gl::TRIANGLES, 0, tri_number);
+            // gl::DrawArrays(gl::TRIANGLES, 0, tri_number);
         }
 
-        // TODO both func call should be in platform present render idk...
+        // ui building:
+        let ui = imgui_sdl2.frame(&systems.window, &mut imgui, &systems.event);
+
+        if display_quit {
+            ui.open_popup(im_str!("Quit ?"));
+        }
+
+        ui.popup(im_str!("Quit ?"), || {
+            ui.same_line(0.0);
+            if ui.small_button(im_str!("Yes")) {
+                platform::exit_application();
+                println!("Application exited!");
+            }
+            ui.same_line(0.0);
+            if ui.small_button(im_str!("No")) {
+                display_quit = false;
+                ui.close_current_popup();
+            }
+        });
+
+        ui.window(im_str!("sound display")).build(|| {
+            let lock = device.lock();
+            let buf = lock.get_debug_buffer();
+            ui.plot_lines(im_str!("curve"), &buf)
+              .graph_size((500.0, 100.0))
+              .build();
+        });
+
+        ui.window(im_str!("instrument settings")).build(|| {
+            let mut osc_to_remove : Vec<usize> = vec![];
+            let mut osc_idx : usize = 0;
+            for osc in edited_instrument.get_vec_mut().iter_mut() {
+                ui.push_id(im_str!("osc_{}", osc_idx));
+                ui.group(|| {
+                    let mut function_idx = osc.osc_func as i32;
+                    ui.drag_int(im_str!("function"), &mut function_idx).min(0).max(3).build();
+                    osc.osc_func = function_idx as usize;
+                    ui.input_float(im_str!("amp_{}", osc_idx), &mut osc.osc_amp).build();
+                    let r = ui.input_int(im_str!("note_offset_{}", osc_idx), &mut osc.osc_note_offset).build();
+                    if ui.small_button(im_str!("remove_{}", osc_idx)) {
+                        osc_to_remove.push(osc_idx);
+                    }
+                    osc_idx = osc_idx + 1;
+                });
+                ui.pop_id();
+            }
+
+            if ui.small_button(im_str!("add")) {
+                edited_instrument.get_vec_mut().push(Oscillator{
+                    osc_func: 0,
+                    osc_amp: 1.0,
+                    osc_note_offset: 0,
+                    lfo_func: 0,
+                    lfo_amp: 0.0,
+                    lfo_freq: 0.0
+                });
+            }
+
+            if ui.small_button(im_str!("load")) {
+                (*device.lock()).set_instrument(edited_instrument.clone());
+            }
+
+            // TODO removed oscs
+            for elem in osc_to_remove.iter() {
+                edited_instrument.get_vec_mut().swap_remove(*elem);
+            }
+            if ! osc_to_remove.is_empty() {
+                (*device.lock()).set_instrument(edited_instrument.clone());
+            }
+        });
+
+        ui.window(im_str!("video debug")).build(|| {
+            ui.text(im_str!("FPS: {}", ui.framerate()));
+        });
+
+        renderer.render(ui);
+
         systems.window.gl_swap_window();
         platform::sleep();
     };
 
     platform::start_loop(main_loop);
+
     unsafe {
         gl::DeleteProgram(program);
         gl::DeleteBuffers(1, &vbo);
         gl::DeleteVertexArrays(1, &vao);
     }
 }
+

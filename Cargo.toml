@@ -6,18 +6,17 @@ authors = ["Oropiko <nope@nopemail.nope>"]
 [dependencies]
 rand = "*"
 gl = "*"
-lodepng = "*"
-immi = "*"
 serde = "*"
 serde_derive = "*"
 serde_yaml = "*"
-libloading = "*"
+imgui = "*"
+imgui-sdl2 = "*"
+imgui-opengl-renderer = "*"
 
 [dependencies.sdl2]
 version = "0.31"
 default-features = false
 features = ["ttf", "image"]
-
 
 [features]
 ttf = []

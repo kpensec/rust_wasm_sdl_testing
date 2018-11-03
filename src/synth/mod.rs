@@ -116,6 +116,7 @@ pub struct Synthesizer {
     sequencer: Sequencer,
     instrument_idx: usize,
     instruments: Vec<Instrument>,
+    debug_buffer: Vec<f32>
 }
 
 impl Synthesizer {
@@ -131,7 +132,8 @@ impl Synthesizer {
             active: true,
             sequencer: Sequencer::new(),
             instrument_idx: 0,
-            instruments: vec![]
+            instruments: vec![],
+            debug_buffer: vec![],
         }
     }
 
@@ -188,6 +190,10 @@ impl Synthesizer {
         lhs + rhs
     }
 
+    pub fn get_debug_buffer(&self) -> &Vec<f32> {
+        &self.debug_buffer
+    }
+
     fn get_sample(&mut self) -> f32 {
         let mut result = 0.0;
         // TODO this is a map fold...
@@ -231,7 +237,10 @@ impl AudioCallback for Synthesizer {
                 *x = 0.0;
             }
         }
+        self.debug_buffer = output.to_vec();
     }
 }
 
 pub use self::instrument::Instrument;
+pub use self::instrument::Oscillator;
+

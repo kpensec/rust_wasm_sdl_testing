@@ -5,3 +5,5 @@ const BASE_FREQ: f32 = 440.0;
 pub fn get_note_freq(n: i32) -> f32 {
     BASE_FREQ * SCALE_FACTOR.powi(n as i32 - 7)
 }
+
+

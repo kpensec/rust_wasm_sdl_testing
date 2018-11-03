@@ -5,12 +5,12 @@ use utils::Unit;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Oscillator {
-    osc_func: usize,
-    osc_amp: Unit,
-    osc_note_offset: i32, // change this to freq offset?
-    lfo_func: usize,
-    lfo_amp: Unit,
-    lfo_freq: Unit,
+    pub osc_func: usize,
+    pub osc_amp: Unit,
+    pub osc_note_offset: i32, // change this to freq offset?
+    pub lfo_func: usize,
+    pub lfo_amp: Unit,
+    pub lfo_freq: Unit,
 }
 
 static OSC_FUNCS: [fn(Unit, Unit) -> Unit; 4] = [
@@ -37,6 +37,9 @@ impl Instrument {
             .map(|osc| osc.get_sample(time, note))
             .fold(0.0, |acc, sample| acc + sample)
     }
+    pub fn get_vec_mut(&mut self) -> &mut Vec<Oscillator> {
+        &mut self.0
+    }
 }
 
 // need to remove below code?
@@ -53,37 +56,5 @@ impl LowFrequencyOscillator {
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct TestInstrument {
-    lfo: LowFrequencyOscillator,
-    pub envelop: Envelop,
-}
 
-impl TestInstrument {
-    pub fn new() -> Self {
-        TestInstrument {
-            envelop: Envelop{
-                attack: 0.05,
-                decay: 0.15,
-                release: 0.1,
-                peak_amp: 1.0,
-                sustain_amp: 0.5
-            },
-            lfo: LowFrequencyOscillator{
-                amplitude: 0.0000002,
-                freq: 1.50,
-            },
-        }
-    }
-
-    pub fn get_sample(&mut self, time: Unit, note: i32) -> Unit {
-        let tone_1 = get_note_freq(note - 1);
-        let tone_2 = get_note_freq(note + 15);
-        let tone_3 = get_note_freq(note);
-        square_wave(time + self.lfo.get(time), tone_1) * 0.45
-            + saw_wave(time + self.lfo.get(2.0*time), tone_2) * 0.45
-            + saw_wave(time + self.lfo.get(0.1*time), tone_3) * 0.3
-            + noise(time, 0.0) * 0.10
-    }
-}
 
