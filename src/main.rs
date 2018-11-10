@@ -1,7 +1,6 @@
 extern crate sdl2;
 extern crate rand;
 extern crate gl;
-#[macro_use] use std::format;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_yaml;
@@ -9,6 +8,7 @@ extern crate serde_yaml;
 extern crate imgui;
 extern crate imgui_sdl2;
 extern crate imgui_opengl_renderer;
+extern crate libloading as lib;
 
 mod ui;
 mod utils;
@@ -16,12 +16,20 @@ mod synth;
 mod platform;
 mod render;
 
+#[macro_use] use std::format;
+
 // TODO lookup for some virtual fs crates?
 use std::collections::{HashSet, HashMap};
 use std::{mem, str, ptr};
 use std::ffi::CString;
 use std::os::raw::c_void;
 
+fn call_dynamic(lib: &lib::Library) -> lib::Result<u32> {
+    unsafe {
+        let func: lib::Symbol<unsafe extern fn() -> u32> = lib.get(b"foo")?;
+        Ok(func())
+    }
+}
 
 // TODO should be on the platform layer code
 use sdl2::event::{Event};
@@ -32,15 +40,10 @@ use sdl2::audio::{AudioSpecDesired};
 use gl::types::*;
 
 
-use utils::{Vec2, Newable};
+use utils::{Unit, Newable};
 use render::gl_utils::make_program;
 use synth::{Synthesizer, Oscillator};
 
-#[derive(Debug, Serialize, Deserialize)]
-struct WindowConf {
-  name: String,
-  size: Vec2
-}
 
 // mod RessourceManager
 fn load_obj(filepath: &str) -> Vec<f32> {
@@ -62,72 +65,6 @@ fn load_obj(filepath: &str) -> Vec<f32> {
 
     result
 }
-
-struct SDLSys {
-   context: sdl2::Sdl,
-   video: sdl2::VideoSubsystem,
-   window: sdl2::video::Window,
-   gl_context: sdl2::video::GLContext,
-   audio: sdl2::AudioSubsystem,
-   event: sdl2::EventPump,
-   timer: sdl2::TimerSubsystem,
-}
-
-fn window_init(video_subsystem: &mut sdl2::VideoSubsystem) -> sdl2::video::Window {
-    { // gl init version
-        let gl_attr = video_subsystem.gl_attr();
-        gl_attr.set_context_profile(sdl2::video::GLProfile::Core);
-        gl_attr.set_context_version(3, 0);
-    }
-
-    let window_cfg : WindowConf =
-      serde_yaml::from_str(&platform::io::read_file("assets/window.yml")).unwrap();
-    println!("window cfg: {:?}", window_cfg);
-
-    video_subsystem.gl_set_swap_interval(sdl2::video::SwapInterval::Immediate);
-    video_subsystem.window(&window_cfg.name, window_cfg.size.x as u32, window_cfg.size.y as u32)
-            .position_centered()
-            .opengl()
-            .allow_highdpi()
-            .build()
-            .unwrap()
-}
-
-// TODO should be in platform ingnite function?
-fn init() -> SDLSys {
-    let sdl_context = sdl2::init()
-        .unwrap();
-
-    let mut video_subsystem = sdl_context.video()
-        .unwrap();
-
-    let window_subsystem = window_init(&mut video_subsystem);
-
-    let audio_subsystem = sdl_context.audio()
-        .unwrap();
-
-    let timer_subsystem = sdl_context.timer()
-        .unwrap();
-
-    let gl_context = window_subsystem.gl_create_context()
-        .expect("Couldn't create GL context");
-
-
-    let event_subsystem = sdl_context.event_pump()
-        .unwrap();
-
-    SDLSys {
-        context: sdl_context,
-        video: video_subsystem,
-        window: window_subsystem,
-        gl_context: gl_context,
-        audio: audio_subsystem,
-        timer: timer_subsystem,
-        event: event_subsystem,
-    }
-
-}
-
 
 pub fn load_ressource<RType, F>(filepath: &str, mut func: F) -> RType
     where F : FnMut(&String, &mut RType) -> (),
@@ -186,13 +123,47 @@ fn load_instrument(path: &str) -> synth::Instrument {
     ).unwrap()
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy)]
+pub struct Color {
+    r: Unit,
+    g: Unit,
+    b: Unit,
+}
+
+impl From<[Unit; 3]> for Color {
+    fn from(array: [Unit; 3]) -> Self {
+        Color {
+            r: array[0],
+            g: array[1],
+            b: array[2],
+        }
+    }
+}
+
+impl Into<[Unit; 3]> for Color {
+    fn into(self) -> [Unit; 3] {
+        [self.r, self.g, self.b]
+    }
+}
+
+impl Color {
+    fn into_array(self) -> [Unit; 3] {
+        self.into()
+    }
+}
+
 fn main() {
 
-    let mut systems = init();
+    let mut bg_color = Color{r: 0.2, g: 0.4, b: 0.2};
+    let window_cfg : platform::WindowCfg =
+      serde_yaml::from_str(&platform::io::read_file("data/cfg/window.yml")).unwrap();
+    println!("window cfg: {:?}", window_cfg);
+    let mut systems = platform::init(window_cfg);
+
+    let mut lib : Vec<lib::Library> = Vec::new();
+    lib.push(lib::Library::new("dylibtest/target/debug/libdylibtest.so").unwrap());
 
     // need to keep a ref to loaded pointer!
-    let _gl = gl::load_with(|name| unsafe{ std::mem::transmute(systems.video.gl_get_proc_address(name)) } );
-
     let mut last_frame_time = 0 as u32;
     let desired_spec = AudioSpecDesired {
         freq: Some(2*22_050),
@@ -200,7 +171,7 @@ fn main() {
         samples: None
     };
 
-    const INSTRUMENT_PATH : &'static str = "assets/instrument/test.yml";
+    const INSTRUMENT_PATH : &'static str = "data/assets/instrument/test.yml";
     let mut edited_instrument = load_instrument(INSTRUMENT_PATH);
     let mut device = systems.audio.open_playback(None, &desired_spec, |spec| {
         println!("{:?}", spec);
@@ -214,17 +185,17 @@ fn main() {
 
     // TODO rework keyboard handling API!
     let mut prev_keys = HashSet::new();
-    let keyboard_notes = load_keybind("assets/keybind.txt");
+    let keyboard_notes = load_keybind("data/cfg/keybind.txt");
 
     let mut frame_count = 10;
     let mut frame_count_time = 0.0;
     let mut frame_per_sec = 60.0;
 
-    let vertex_data = load_obj("assets/triangle.obj");
+    let vertex_data = load_obj("data/assets/triangle.obj");
 
     // TODO abstract gl object loading!
     // TODO gl program in yaml seems ok
-    let program_def: ProgramDef = serde_yaml::from_str(&platform::io::read_file("assets/sprite.yml")).unwrap();
+    let program_def: ProgramDef = serde_yaml::from_str(&platform::io::read_file("data/assets/sprite.yml")).unwrap();
     println!("{:?}", program_def);
 
     let program = make_program(&program_def.vertex, &program_def.fragment);
@@ -263,7 +234,7 @@ fn main() {
     let tri_number = vertex_data.len() as i32 / 6;
 
     let mut imgui = imgui::ImGui::init();
-    imgui.set_ini_filename(None);
+    imgui.set_ini_filename(Some(imgui::ImString::new("data/cfg/imgui.ini")));
     let mut imgui_sdl2 = imgui_sdl2::ImguiSdl2::new(&mut imgui);
 
     let renderer = imgui_opengl_renderer::Renderer::new(&mut imgui, |s| systems.video.gl_get_proc_address(s) as _);
@@ -282,6 +253,9 @@ fn main() {
             }
             match event {
                 Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                    if display_quit {
+                        platform::exit_application();
+                    }
                     display_quit = true;
                 },
                 Event::KeyDown { keycode: Some(Keycode::Left), ..} => {
@@ -296,7 +270,18 @@ fn main() {
                     let mut lock = device.lock();
                     (*lock).toggle_audio();
                 },
+                Event::KeyDown { keycode: Some(Keycode::F4), ..} => {
+                    println!("trying to dycall...");
+                    println!("dycall result: {}", call_dynamic(&lib.get(0).unwrap()).unwrap());
+                },
                 Event::KeyDown { keycode: Some(Keycode::F2), ..} => {
+                    std::process::Command::new("cargo")
+                        .current_dir("./dylibtest")
+                        .args(&["build"]).status().expect("...");
+
+                    lib.swap_remove(0);
+                    lib.push(lib::Library::new("dylibtest/target/debug/libdylibtest.so").unwrap());
+                    println!("lib size: {}",lib.len());
                 },
                 Event::KeyDown { keycode: Some(Keycode::F3), ..} => {
                     let instrument = load_instrument(INSTRUMENT_PATH);
@@ -368,7 +353,7 @@ fn main() {
 
         unsafe {
             systems.window.gl_set_context_to_current().unwrap();
-            gl::ClearColor(0.2, 0.2, 0.2, 1.0);
+            gl::ClearColor(bg_color.r, bg_color.g, bg_color.b, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
             // gl::DrawArrays(gl::TRIANGLES, 0, tri_number);
         }
@@ -380,6 +365,7 @@ fn main() {
             ui.open_popup(im_str!("Quit ?"));
         }
 
+        // TODO should be a modal_popup aka fork imgui-sdl2 for handling higher version of imgui
         ui.popup(im_str!("Quit ?"), || {
             ui.same_line(0.0);
             if ui.small_button(im_str!("Yes")) {
@@ -393,6 +379,7 @@ fn main() {
             }
         });
 
+        // TODO render all osc ? (it need to rethink the design of synthesizer...)
         ui.window(im_str!("sound display")).build(|| {
             let lock = device.lock();
             let buf = lock.get_debug_buffer();
@@ -401,7 +388,15 @@ fn main() {
               .build();
         });
 
+        // osc ui
         ui.window(im_str!("instrument settings")).build(|| {
+            let mut current_volume = device.lock().get_volume();
+            if ui.drag_float(im_str!("master volume"), &mut current_volume)
+              .min(0.0)
+              .max(1.0)
+              .build() {
+                (*(device.lock())).set_volume(current_volume);
+            }
             let mut osc_to_remove : Vec<usize> = vec![];
             let mut osc_idx : usize = 0;
             for osc in edited_instrument.get_vec_mut().iter_mut() {
@@ -429,11 +424,20 @@ fn main() {
                     lfo_amp: 0.0,
                     lfo_freq: 0.0
                 });
+                (*device.lock()).set_instrument(edited_instrument.clone());
             }
 
+            ui.same_line(0.0);
             if ui.small_button(im_str!("load")) {
                 (*device.lock()).set_instrument(edited_instrument.clone());
             }
+            ui.same_line(0.0);
+            if ui.small_button(im_str!("save")) {
+                let content = serde_yaml::to_string(&edited_instrument).unwrap();
+                platform::io::write_file(INSTRUMENT_PATH, &content);
+            }
+
+
 
             // TODO removed oscs
             for elem in osc_to_remove.iter() {
@@ -446,6 +450,13 @@ fn main() {
 
         ui.window(im_str!("video debug")).build(|| {
             ui.text(im_str!("FPS: {}", ui.framerate()));
+        });
+
+        ui.window(im_str!("theme settings")).build(|| {
+            let mut array = bg_color.into_array();
+            if ui.color_picker(im_str!("bg color"), &mut array).build() {
+                bg_color = Color::from(array);
+            }
         });
 
         renderer.render(ui);

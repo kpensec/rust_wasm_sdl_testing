@@ -44,6 +44,16 @@ pub fn read_file(filepath: &str) -> String {
     contents
 }
 
+pub fn write_file(filepath: &str, content: &str) {
+    use std::io::Write;
+
+    let mut file = File::create(filepath)
+        .expect("cannot create file");
+
+    file.write_all(content.as_bytes()).unwrap();
+
+}
+
 pub fn read_bfile(filepath: &str) -> Vec<u8> {
     use std::io::Read;
 

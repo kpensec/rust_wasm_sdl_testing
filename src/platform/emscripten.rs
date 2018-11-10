@@ -1,6 +1,6 @@
 // taken from https://github.com/Gigoteur/PX8/blob/master/src/px8/emscripten.rs
 
-#[cfg(target_os = "emscripten")]
+#[cfg(target_os = "emscripten")] {
 use std::cell::RefCell;
 use std::ptr::null_mut;
 use std::os::raw::{c_int, c_void, c_float};
@@ -35,4 +35,5 @@ pub fn exit_application() {
     unsafe {
         emscripten_cancel_main_loop();
     }
+}
 }

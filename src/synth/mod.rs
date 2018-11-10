@@ -150,7 +150,8 @@ impl Synthesizer {
     }
 
     pub fn set_volume(&mut self, q: f32) {
-        self.volume = clamp(self.volume + q, 0.0, 1.0);
+        self.volume = clamp(q, 0.0, 1.0);
+        println!("{}", self.volume)
     }
 
     pub fn set_instrument(&mut self, instrument: Instrument) {

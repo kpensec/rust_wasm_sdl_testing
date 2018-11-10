@@ -1,5 +1,4 @@
 use synth::periodical_wave::{*};
-use synth::envelop::Envelop;
 use synth::note::get_note_freq;
 use utils::Unit;
 

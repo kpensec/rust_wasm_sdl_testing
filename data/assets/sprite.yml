@@ -1,0 +1,3 @@
+# shader program definition
+vertex: 'data/assets/sprite.vs'
+fragment: 'data/assets/sprite.fs'

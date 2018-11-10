@@ -1,0 +1,25 @@
+---
+- osc_func: 2
+  osc_amp: 1.2000000476837159
+  osc_note_offset: -5
+  lfo_func: 2
+  lfo_amp: 1.0049999952316285
+  lfo_freq: 0.5
+- osc_func: 2
+  osc_amp: 1.5
+  osc_note_offset: 8
+  lfo_func: 0
+  lfo_amp: 0.5
+  lfo_freq: 0.03999999910593033
+- osc_func: 3
+  osc_amp: 0.30000001192092898
+  osc_note_offset: 0
+  lfo_func: 0
+  lfo_amp: 0.0
+  lfo_freq: 0.0
+- osc_func: 2
+  osc_amp: 0.30000001192092898
+  osc_note_offset: 33
+  lfo_func: 1
+  lfo_amp: 0.10100000351667404
+  lfo_freq: 2.200000047683716

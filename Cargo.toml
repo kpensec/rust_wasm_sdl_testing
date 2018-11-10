@@ -10,13 +10,16 @@ serde = "*"
 serde_derive = "*"
 serde_yaml = "*"
 imgui = "*"
-imgui-sdl2 = "*"
-imgui-opengl-renderer = "*"
+imgui-sdl2 = { version = "*", optional = true }
+imgui-opengl-renderer = { path = "../rust-imgui-opengl-renderer" }
+# physfs-rs = { git = "https://github.com/PistonDevelopers/physfs-rs" } # nightly required!
+libloading = "*"
 
 [dependencies.sdl2]
 version = "0.31"
 default-features = false
-features = ["ttf", "image"]
+optional = true
 
 [features]
-ttf = []
+default = ["sdl2", "imgui-sdl2"]
+
