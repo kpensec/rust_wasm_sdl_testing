@@ -13,7 +13,9 @@ emsdk_set_env.sh
 msvc/
 gnu-mingw/
 *.dll
+*.so
 .vim/
 log/
 
 fonts/
+bin/

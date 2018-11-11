@@ -24,12 +24,6 @@ use std::{mem, str, ptr};
 use std::ffi::CString;
 use std::os::raw::c_void;
 
-fn call_dynamic(lib: &lib::Library) -> lib::Result<u32> {
-    unsafe {
-        let func: lib::Symbol<unsafe extern fn() -> u32> = lib.get(b"foo")?;
-        Ok(func())
-    }
-}
 
 // TODO should be on the platform layer code
 use sdl2::event::{Event};
@@ -152,16 +146,41 @@ impl Color {
     }
 }
 
+fn call_dynamic(lib: &lib::Library) -> lib::Result<u32> {
+    unsafe {
+        let func: lib::Symbol<unsafe extern fn() -> u32> = lib.get(b"foo")?;
+        Ok(func())
+    }
+}
+
+fn load_library(libpath: &str, libs : &mut Vec<lib::Library>) -> () {
+    match lib::Library::new(libpath) {
+        Ok(shared_object) => { libs.push(shared_object); }
+        Err(_) => { println!("library {} not loaded!", libpath); }
+    }
+}
+
+/*
+ * TODO idk what to put ...
+ * struct AssetsCfg {
+ *
+ * }
+ */
+
+const WINDOW_CFG_PATH : &'static str = "data/cfg/window.yml";
+const LIB_PATH : &'static str = "dylibtest/target/debug/libdylibtest.so";
+const INSTRUMENT_PATH : &'static str = "data/assets/instrument/test.yml";
 fn main() {
 
+    //let assets_paths : AssetsCfg = serde_yaml::from_str("data/ressources.yml");
     let mut bg_color = Color{r: 0.2, g: 0.4, b: 0.2};
     let window_cfg : platform::WindowCfg =
-      serde_yaml::from_str(&platform::io::read_file("data/cfg/window.yml")).unwrap();
+      serde_yaml::from_str(&platform::io::read_file(WINDOW_CFG_PATH)).unwrap();
     println!("window cfg: {:?}", window_cfg);
     let mut systems = platform::init(window_cfg);
 
-    let mut lib : Vec<lib::Library> = Vec::new();
-    lib.push(lib::Library::new("dylibtest/target/debug/libdylibtest.so").unwrap());
+    let mut libs : Vec<lib::Library> = Vec::new();
+    load_library(LIB_PATH, &mut libs);
 
     // need to keep a ref to loaded pointer!
     let mut last_frame_time = 0 as u32;
@@ -171,7 +190,6 @@ fn main() {
         samples: None
     };
 
-    const INSTRUMENT_PATH : &'static str = "data/assets/instrument/test.yml";
     let mut edited_instrument = load_instrument(INSTRUMENT_PATH);
     let mut device = systems.audio.open_playback(None, &desired_spec, |spec| {
         println!("{:?}", spec);
@@ -272,16 +290,16 @@ fn main() {
                 },
                 Event::KeyDown { keycode: Some(Keycode::F4), ..} => {
                     println!("trying to dycall...");
-                    println!("dycall result: {}", call_dynamic(&lib.get(0).unwrap()).unwrap());
+                    println!("dycall result: {}", call_dynamic(&libs.get(0).unwrap()).unwrap());
                 },
                 Event::KeyDown { keycode: Some(Keycode::F2), ..} => {
                     std::process::Command::new("cargo")
                         .current_dir("./dylibtest")
                         .args(&["build"]).status().expect("...");
 
-                    lib.swap_remove(0);
-                    lib.push(lib::Library::new("dylibtest/target/debug/libdylibtest.so").unwrap());
-                    println!("lib size: {}",lib.len());
+                    libs.swap_remove(0);
+                    libs.push(lib::Library::new("dylibtest/target/debug/libdylibtest.so").unwrap());
+                    println!("lib size: {}",libs.len());
                 },
                 Event::KeyDown { keycode: Some(Keycode::F3), ..} => {
                     let instrument = load_instrument(INSTRUMENT_PATH);

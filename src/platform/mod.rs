@@ -66,8 +66,8 @@ pub struct BackendSystems {
 fn window_init(video_subsystem: &mut sdl2::VideoSubsystem, cfg: WindowCfg) -> sdl2::video::Window {
 
     let gl_attr = video_subsystem.gl_attr();
-    gl_attr.set_context_profile(sdl2::video::GLProfile::Core);
-    gl_attr.set_context_version(3, 0);
+    // gl_attr.set_context_profile(sdl2::video::GLProfile::Core);
+    // gl_attr.set_context_version(3, 0);
 
     video_subsystem.gl_set_swap_interval(sdl2::video::SwapInterval::Immediate);
 
@@ -80,9 +80,6 @@ fn window_init(video_subsystem: &mut sdl2::VideoSubsystem, cfg: WindowCfg) -> sd
         .build()
         .unwrap();
 
-    gl::load_with(|name| unsafe {
-        std::mem::transmute(video_subsystem.gl_get_proc_address(name))
-    });
 
     window
 }
@@ -97,6 +94,7 @@ pub fn init(window_cfg: WindowCfg) -> BackendSystems {
 
     let mut video_subsystem = sdl_context.video()
         .unwrap();
+
 
     let window_subsystem =
         window_init(&mut video_subsystem, window_cfg);
@@ -113,7 +111,7 @@ pub fn init(window_cfg: WindowCfg) -> BackendSystems {
     let event_subsystem = sdl_context.event_pump()
         .unwrap();
 
-    BackendSystems {
+    let result = BackendSystems {
         context: sdl_context,
         video: video_subsystem,
         window: window_subsystem,
@@ -121,7 +119,15 @@ pub fn init(window_cfg: WindowCfg) -> BackendSystems {
         audio: audio_subsystem,
         timer: timer_subsystem,
         event: event_subsystem,
-    }
+    };
+
+    // it seems that gl_proc_addr must be fetch after window_subsys or video_subsys move on windows
+    // TODO learn rust...
+    gl::load_with(|name| unsafe {
+        std::mem::transmute(result.video.gl_get_proc_address(name))
+    });
+
+    result
 }
 
 //}

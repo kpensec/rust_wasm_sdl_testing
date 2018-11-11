@@ -4,12 +4,12 @@ version = "0.1.0"
 authors = ["Oropiko <nope@nopemail.nope>"]
 
 [dependencies]
+imgui = "^0.0.20"
 rand = "*"
 gl = "*"
 serde = "*"
 serde_derive = "*"
 serde_yaml = "*"
-imgui = "*"
 imgui-sdl2 = { version = "*", optional = true }
 imgui-opengl-renderer = { path = "../rust-imgui-opengl-renderer" }
 # physfs-rs = { git = "https://github.com/PistonDevelopers/physfs-rs" } # nightly required!

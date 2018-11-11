@@ -31,6 +31,9 @@ impl Oscillator {
 pub struct Instrument(Vec<Oscillator>);
 
 impl Instrument {
+    pub fn new() -> Self {
+        Instrument{0: vec![]}
+    }
     pub fn get_sample(self, time: Unit, note: i32) -> Unit {
         self.0.into_iter()
             .map(|osc| osc.get_sample(time, note))
