@@ -166,10 +166,22 @@ fn load_library(libpath: &str, libs : &mut Vec<lib::Library>) -> () {
  *
  * }
  */
-
+#[cfg(windows)]
+const SHARED_OBJ_EXT : &'static str = "dll";
+#[cfg(not(windows))]
+const SHARED_OBJ_EXT : &'static str = "so";
 const WINDOW_CFG_PATH : &'static str = "data/cfg/window.yml";
-const LIB_PATH : &'static str = "dylibtest/target/debug/libdylibtest.so";
+// const LIB_PATH : &'static str = "dylibtest/target/debug/libdylibtest.{}";
 const INSTRUMENT_PATH : &'static str = "data/assets/instrument/test.yml";
+const KEYBIND_PATH : &'static str = "data/cfg/keybind.txt";
+const OBJ_PATH : &'static str = "data/assets/triangle.obj";
+const SPRITE_PATH : &'static str = "./data/assets/sprite.yml"; // TODO put obj path in sprite definition
+const IMGUI_INI_PATH : &'static str = "data/cfg/imgui.ini"; // TODO put obj path in sprite definition
+
+fn get_lib_path() -> String {
+    format!("dylibtest/target/debug/libdylibtest.{}", SHARED_OBJ_EXT)
+}
+
 fn main() {
 
     //let assets_paths : AssetsCfg = serde_yaml::from_str("data/ressources.yml");
@@ -180,7 +192,7 @@ fn main() {
     let mut systems = platform::init(window_cfg);
 
     let mut libs : Vec<lib::Library> = Vec::new();
-    load_library(LIB_PATH, &mut libs);
+    load_library(&get_lib_path(), &mut libs);
 
     // need to keep a ref to loaded pointer!
     let mut last_frame_time = 0 as u32;
@@ -203,22 +215,23 @@ fn main() {
 
     // TODO rework keyboard handling API!
     let mut prev_keys = HashSet::new();
-    let keyboard_notes = load_keybind("data/cfg/keybind.txt");
+    let keyboard_notes = load_keybind(KEYBIND_PATH);
 
     let mut frame_count = 10;
     let mut frame_count_time = 0.0;
     let mut frame_per_sec = 60.0;
 
-    let vertex_data = load_obj("data/assets/triangle.obj");
+    let vertex_data = load_obj(OBJ_PATH);
 
     // TODO abstract gl object loading!
     // TODO gl program in yaml seems ok
-    let program_def: ProgramDef = serde_yaml::from_str(&platform::io::read_file("data/assets/sprite.yml")).unwrap();
+    let program_def: ProgramDef = serde_yaml::from_str(&platform::io::read_file(SPRITE_PATH)).unwrap();
     println!("{:?}", program_def);
 
     let program = make_program(&program_def.vertex, &program_def.fragment);
     let mut vbo = 0;
     let mut vao = 0;
+    // TODO create gl program attribute binding configuration file
     unsafe { // uploading gl data
         gl::GenVertexArrays(1, &mut vao);
         gl::BindVertexArray(vao);
@@ -252,7 +265,7 @@ fn main() {
     let tri_number = vertex_data.len() as i32 / 6;
 
     let mut imgui = imgui::ImGui::init();
-    imgui.set_ini_filename(Some(imgui::ImString::new("data/cfg/imgui.ini")));
+    imgui.set_ini_filename(Some(imgui::ImString::new(IMGUI_INI_PATH)));
     let mut imgui_sdl2 = imgui_sdl2::ImguiSdl2::new(&mut imgui);
 
     let renderer = imgui_opengl_renderer::Renderer::new(&mut imgui, |s| systems.video.gl_get_proc_address(s) as _);
@@ -290,16 +303,24 @@ fn main() {
                 },
                 Event::KeyDown { keycode: Some(Keycode::F4), ..} => {
                     println!("trying to dycall...");
-                    println!("dycall result: {}", call_dynamic(&libs.get(0).unwrap()).unwrap());
+                    match libs.get(0) {
+                        None => println!("library not loaded!"),
+                        Some(lib) => match call_dynamic(lib) {
+                            Err(_) => println!("error calling function!"),
+                            Ok(result) => println!("function call result {}", result)
+                        }
+                    }
+                    // println!("dycall result: {}", call_dynamic(&libs.get(0).unwrap()).unwrap());
                 },
                 Event::KeyDown { keycode: Some(Keycode::F2), ..} => {
                     std::process::Command::new("cargo")
                         .current_dir("./dylibtest")
-                        .args(&["build"]).status().expect("...");
+                        .args(&["build", "--release"]).status().expect("...");
 
-                    libs.swap_remove(0);
-                    libs.push(lib::Library::new("dylibtest/target/debug/libdylibtest.so").unwrap());
-                    println!("lib size: {}",libs.len());
+                    if libs.len() > 0 {
+                        libs.swap_remove(0);
+                    }
+                    load_library(&get_lib_path(), &mut libs);
                 },
                 Event::KeyDown { keycode: Some(Keycode::F3), ..} => {
                     let instrument = load_instrument(INSTRUMENT_PATH);
@@ -359,10 +380,7 @@ fn main() {
         { // fps counter
             frame_count_time += eps;
             frame_count -= 1;
-            if frame_count == 0 {
-                if frame_count_time == 0.0 {
-                    println!("divided by zero!");
-                }
+            if frame_count == 0 && frame_count_time != 0.0 {
                 frame_count = 60;
                 frame_per_sec =  frame_count as f32 / frame_count_time ;
                 frame_count_time = 0.0;
@@ -383,6 +401,7 @@ fn main() {
             ui.open_popup(im_str!("Quit ?"));
         }
 
+        // TODO create gui label mapping configuration file?
         // TODO should be a modal_popup aka fork imgui-sdl2 for handling higher version of imgui
         ui.popup(im_str!("Quit ?"), || {
             ui.same_line(0.0);
@@ -398,7 +417,7 @@ fn main() {
         });
 
         // TODO render all osc ? (it need to rethink the design of synthesizer...)
-        ui.window(im_str!("sound display")).build(|| {
+        ui.window(im_str!("Waveform output")).build(|| {
             let lock = device.lock();
             let buf = lock.get_debug_buffer();
             ui.plot_lines(im_str!("curve"), &buf)
@@ -433,7 +452,7 @@ fn main() {
                 ui.pop_id();
             }
 
-            if ui.small_button(im_str!("add")) {
+            if ui.small_button(im_str!("Add oscillator")) {
                 edited_instrument.get_vec_mut().push(Oscillator{
                     osc_func: 0,
                     osc_amp: 1.0,
@@ -446,11 +465,16 @@ fn main() {
             }
 
             ui.same_line(0.0);
-            if ui.small_button(im_str!("load")) {
+            if ui.small_button(im_str!("Update")) {
+                (*device.lock()).set_instrument(edited_instrument.clone());
+            }
+
+            if ui.small_button(im_str!("Load")) {
+                edited_instrument = load_instrument(INSTRUMENT_PATH);
                 (*device.lock()).set_instrument(edited_instrument.clone());
             }
             ui.same_line(0.0);
-            if ui.small_button(im_str!("save")) {
+            if ui.small_button(im_str!("Save")) {
                 let content = serde_yaml::to_string(&edited_instrument).unwrap();
                 platform::io::write_file(INSTRUMENT_PATH, &content);
             }
