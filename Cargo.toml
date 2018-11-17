@@ -15,6 +15,9 @@ imgui-opengl-renderer = { path = "../rust-imgui-opengl-renderer" }
 # physfs-rs = { git = "https://github.com/PistonDevelopers/physfs-rs" } # nightly required!
 libloading = "*"
 
+# FFT lib
+rustfft = "2.0.0"
+
 [dependencies.sdl2]
 version = "0.31"
 default-features = false
