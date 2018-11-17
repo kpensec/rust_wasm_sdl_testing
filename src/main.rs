@@ -9,6 +9,7 @@ extern crate imgui;
 extern crate imgui_sdl2;
 extern crate imgui_opengl_renderer;
 extern crate libloading as lib;
+extern crate rustfft;
 
 mod ui;
 mod utils;
@@ -423,7 +424,25 @@ fn main() {
             ui.plot_lines(im_str!("curve"), &buf)
               .graph_size((500.0, 100.0))
               .build();
+
+            use rustfft::num_complex::Complex32;
+            use rustfft::{FFT, FFTplanner};
+            let mut planner = FFTplanner::new(false);
+            let mut fft = planner.plan_fft(buf.len() as usize);
+            let mut ibuf = buf.iter()
+                .map(|x| Complex32::new(*x, 0.0))
+                     .collect::<Vec<_>>();
+            let mut sbuf = ibuf.clone();
+            fft.process(&mut ibuf[..], &mut sbuf[..]);
+
+            ui.plot_histogram(im_str!("spectrum"), &sbuf.iter()
+                              .map(|x| 44_100 as f32 / x.norm() as f32).collect::<Vec<f32>>())
+                .graph_size((500.0,100.0))
+                .build();
+
         });
+
+
 
         // osc ui
         ui.window(im_str!("instrument settings")).build(|| {
